@@ -39,8 +39,9 @@ async function getUserData() {
     }
 }
 
-getUserData();
-
+console.log(new Date().toISOString(), "[L42]", "before getUserData function call.");
+// getUserData();
+console.log(new Date().toISOString(), "[L44]", "after getUserData function call.");
 // ============================================
 // 顺序执行多个异步操作
 // ============================================
@@ -78,8 +79,9 @@ async function fetchMultipleUsers() {
     console.log(new Date().toISOString(), "[L78]", "所有用户:", users);
 }
 
-//fetchMultipleUsers();
+fetchMultipleUsers();
 
+console.log(new Date().toISOString(), "[L83]", "end functon of fetchMultipleUsers");
 // ============================================
 // 错误处理
 // ============================================
