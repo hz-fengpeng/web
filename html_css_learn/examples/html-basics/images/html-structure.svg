@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="480" viewBox="0 0 960 480" role="img" aria-labelledby="title description">
+  <title id="title">网页语义结构示意图</title>
+  <desc id="description">一个网页线框，包含页头、主要内容、文章、侧栏和页脚区域</desc>
+  <rect width="960" height="480" fill="#e7efec"/>
+  <rect x="70" y="42" width="820" height="396" rx="6" fill="#ffffff" stroke="#202124" stroke-width="4"/>
+  <rect x="94" y="70" width="772" height="62" fill="#075e54"/>
+  <text x="120" y="108" fill="#ffffff" font-family="system-ui, sans-serif" font-size="24" font-weight="700">header + nav</text>
+  <rect x="94" y="154" width="510" height="196" fill="#f6f7f8" stroke="#8c969f" stroke-width="3"/>
+  <text x="120" y="194" fill="#202124" font-family="system-ui, sans-serif" font-size="24" font-weight="700">main</text>
+  <rect x="120" y="216" width="458" height="106" fill="#ffffff" stroke="#075e54" stroke-width="3"/>
+  <text x="144" y="276" fill="#075e54" font-family="system-ui, sans-serif" font-size="28" font-weight="700">article + section</text>
+  <rect x="628" y="154" width="238" height="196" fill="#fff8dc" stroke="#e0a800" stroke-width="3"/>
+  <text x="674" y="262" fill="#202124" font-family="system-ui, sans-serif" font-size="28" font-weight="700">aside</text>
+  <rect x="94" y="372" width="772" height="42" fill="#202124"/>
+  <text x="427" y="401" fill="#ffffff" font-family="system-ui, sans-serif" font-size="22" font-weight="700">footer</text>
+</svg>

@@ -1,0 +1,264 @@
+/* 这份样式只用于改善阅读体验。学习本章时，请把注意力放在 index.html 的结构上。 */
+:root {
+  color: #202124;
+  background: #f6f7f8;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.65;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+a {
+  color: #075e54;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #e0a800;
+  outline-offset: 3px;
+}
+
+.site-header,
+.page,
+.site-footer {
+  width: min(100% - 2rem, 64rem);
+  margin-inline: auto;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  padding-block: 1rem;
+  border-block-end: 1px solid #ccd2d7;
+}
+
+.site-name {
+  color: #18201e;
+  font-size: 1.1rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.nav-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16rem;
+  gap: 2rem;
+  padding-block: 2.5rem 4rem;
+}
+
+article,
+.signup {
+  min-width: 0;
+}
+
+.article-header {
+  margin-block-end: 2rem;
+}
+
+.category {
+  margin-block-end: 0.25rem;
+  color: #075e54;
+  font-weight: 750;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+}
+
+h1 {
+  margin-block: 0;
+  font-size: 2.25rem;
+}
+
+h2 {
+  margin-block-start: 2.25rem;
+}
+
+figure {
+  margin: 0 0 2rem;
+}
+
+figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #ccd2d7;
+}
+
+figcaption {
+  margin-block-start: 0.5rem;
+  color: #59636e;
+  font-size: 0.9rem;
+}
+
+code {
+  padding: 0.1rem 0.3rem;
+  background: #e9ecef;
+  border-radius: 0.2rem;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+caption {
+  margin-block-end: 0.5rem;
+  font-weight: 700;
+  text-align: start;
+}
+
+th,
+td {
+  padding: 0.7rem;
+  border: 1px solid #b8c0c7;
+  text-align: start;
+}
+
+thead {
+  background: #e7efec;
+}
+
+.sidebar {
+  align-self: start;
+  padding: 1rem;
+  background: #fff8dc;
+  border-inline-start: 4px solid #e0a800;
+}
+
+.sidebar h2 {
+  margin-block-start: 0;
+  font-size: 1.2rem;
+}
+
+blockquote {
+  margin: 1rem 0 0;
+  color: #59636e;
+}
+
+.signup {
+  grid-column: 1 / -1;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid #ccd2d7;
+}
+
+form {
+  display: grid;
+  gap: 1rem;
+  max-width: 40rem;
+}
+
+.form-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+label,
+legend {
+  font-weight: 650;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+input[type="text"],
+input[type="email"],
+select,
+textarea {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #8c969f;
+  border-radius: 0.25rem;
+  background: #ffffff;
+}
+
+fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  padding: 0.8rem;
+  border: 1px solid #8c969f;
+}
+
+.checkbox-label {
+  font-weight: 500;
+}
+
+button {
+  justify-self: start;
+  padding: 0.65rem 1rem;
+  color: #ffffff;
+  background: #075e54;
+  border: 0;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+button:hover {
+  background: #06483f;
+}
+
+.site-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1.25rem 2rem;
+  border-block-start: 1px solid #ccd2d7;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+@media (max-width: 44rem) {
+  .site-header,
+  .site-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .page {
+    grid-template-columns: 1fr;
+  }
+
+  .signup {
+    grid-column: auto;
+  }
+
+  h1 {
+    font-size: 1.8rem;
+  }
+}

@@ -3,13 +3,13 @@
 // ============================================
 
 // 1. 回调函数（Callback）
-console.log("开始");
+console.log(new Date().toISOString(), "开始");
 
 setTimeout(() => {
-    console.log("2 秒后执行");
+    console.log(new Date().toISOString(), "2 秒后执行");
 }, 2000);
 
-console.log("结束");
+console.log(new Date().toISOString(), "结束");
 // 输出顺序: 开始 -> 结束 -> 2 秒后执行
 
 // ============================================
@@ -17,7 +17,7 @@ console.log("结束");
 // ============================================
 
 function fetchData(callback) {
-    console.log("\n正在获取数据...");
+    console.log(new Date().toISOString(), "正在获取数据...");
     setTimeout(() => {
         const data = { id: 1, name: "用户数据" };
         callback(data);
@@ -25,7 +25,7 @@ function fetchData(callback) {
 }
 
 fetchData((data) => {
-    console.log("收到数据:", data);
+    console.log(new Date().toISOString(), "收到数据:", data);
 });
 
 // ============================================
@@ -34,21 +34,21 @@ fetchData((data) => {
 
 function step1(callback) {
     setTimeout(() => {
-        console.log("\n步骤 1 完成");
+        console.log(new Date().toISOString(), "步骤 1 完成");
         callback();
     }, 1000);
 }
 
 function step2(callback) {
     setTimeout(() => {
-        console.log("步骤 2 完成");
+        console.log(new Date().toISOString(), "步骤 2 完成");
         callback();
     }, 1000);
 }
 
 function step3(callback) {
     setTimeout(() => {
-        console.log("步骤 3 完成");
+        console.log(new Date().toISOString(), "步骤 3 完成");
         callback();
     }, 1000);
 }
@@ -57,7 +57,9 @@ function step3(callback) {
 step1(() => {
     step2(() => {
         step3(() => {
-            console.log("所有步骤完成");
+            console.log(new Date().toISOString(), "所有步骤完成");
         });
     });
 });
+
+console.log(new Date().toISOString(), "js结束");

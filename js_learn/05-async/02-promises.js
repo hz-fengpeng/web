@@ -46,22 +46,22 @@ function fetchUser(id) {
 }
 
 // 使用 Promise
-console.log("开始获取用户...");
+console.log(new Date().toISOString(), "[L49]", "开始获取用户...");
 fetchUser(1)
     .then(user => {
-        console.log("成功:", user);
+        console.log(new Date().toISOString(), "[L52]", "成功:", user);
         return user.id;
     })
     .then(id => {
-        console.log("用户 ID:", id);
+        console.log(new Date().toISOString(), "[L56]", "用户 ID:", id);
     })
     .catch(error => {
-        console.error("错误:", error);
+        console.error(new Date().toISOString(), "[L59]", "错误:", error);
     })
     .finally(() => {
-        console.log("操作完成");
+        console.log(new Date().toISOString(), "[L62]", "操作完成");
     });
-
+console.log(new Date().toISOString(), "[L64]", "after fetchUser 调用.....");
 // ============================================
 // Promise 链式调用
 // ============================================
@@ -77,40 +77,41 @@ fetchUser(1)
 */
 
 // 示例：理解 .then() 返回新 Promise
+console.log(new Date().toISOString(), "[L80]", "--- Promise 链式调用示例 ---");
 const promiseA = fetchUser(1);
 const promiseB = promiseA.then(user => {
-    console.log("\n第一个 then 执行");
+    console.log(new Date().toISOString(), "[L83]", "第一个 then 执行");
     return user.id;  // 返回普通值 1
 });
 const promiseC = promiseB.then(id => {
-    console.log("第二个 then 执行，收到:", id);
+    console.log(new Date().toISOString(), "[L87]", "第二个 then 执行，收到:", id);
     return id * 2;   // 返回普通值 2
 });
 const promiseD = promiseC.then(doubled => {
-    console.log("第三个 then 执行，收到:", doubled);
+    console.log(new Date().toISOString(), "[L91]", "第三个 then 执行，收到:", doubled);
 });
-
+console.log(new Date().toISOString(), "[L93]", "--- Promise链式调用结束 ---");
 // 等价于链式写法：
 // fetchUser(1)
 //     .then(user => user.id)
 //     .then(id => id * 2)
-//     .then(doubled => console.log(doubled));
+//     .then(doubled => console.log(new Date().toISOString(), "[L98]", doubled));
 
 // 示例：返回 Promise vs 返回普通值
 function example1() {
     return Promise.resolve(1)
         .then(value => {
-            console.log("\n返回普通值:", value);
+            console.log(new Date().toISOString(), "[L104]", "返回普通值:", value);
             return value + 1;  // 返回 2（普通值）
         })
         .then(value => {
-            console.log("收到普通值:", value);  // 立即执行，收到 2
+            console.log(new Date().toISOString(), "[L108]", "收到普通值:", value);  // 立即执行，收到 2
             return new Promise(resolve => {
                 setTimeout(() => resolve(value + 1), 1000);
             });  // 返回 Promise
         })
         .then(value => {
-            console.log("收到 Promise 结果:", value);  // 等待 1 秒后执行，收到 3
+            console.log(new Date().toISOString(), "[L114]", "收到 Promise 结果:", value);  // 等待 1 秒后执行，收到 3
         });
 }
 
@@ -119,7 +120,7 @@ example1();
 function step1() {
     return new Promise(resolve => {
         setTimeout(() => {
-            console.log("\n步骤 1");
+            console.log(new Date().toISOString(), "[L123]", "步骤 1");
             resolve(1);
         }, 1000);
     });
@@ -128,7 +129,7 @@ function step1() {
 function step2(value) {
     return new Promise(resolve => {
         setTimeout(() => {
-            console.log("步骤 2");
+            console.log(new Date().toISOString(), "[L132]", "步骤 2");
             resolve(value + 1);
         }, 1000);
     });
@@ -137,7 +138,7 @@ function step2(value) {
 function step3(value) {
     return new Promise(resolve => {
         setTimeout(() => {
-            console.log("步骤 3");
+            console.log(new Date().toISOString(), "[L141]", "步骤 3");
             resolve(value + 1);
         }, 1000);
     });
@@ -147,56 +148,56 @@ step1()
     .then(result => step2(result))
     .then(result => step3(result))
     .then(result => {
-        console.log("最终结果:", result);
+        console.log(new Date().toISOString(), "[L151]", "最终结果:", result);
     });
 
 // ============================================
 // .then() 返回值的不同情况
 // ============================================
 
-console.log("\n--- .then() 返回值测试 ---");
+console.log(new Date().toISOString(), "[L158]", "--- .then() 返回值测试 ---");
 
 // 情况 1: 返回普通值
 Promise.resolve(10)
     .then(value => {
-        console.log("\n情况1 - 返回普通值:", value);
+        console.log(new Date().toISOString(), "[L163]", "情况1 - 返回普通值:", value);
         return value * 2;  // 返回 20
     })
     .then(value => {
-        console.log("下一个 then 收到:", value);  // 20
+        console.log(new Date().toISOString(), "[L167]", "下一个 then 收到:", value);  // 20
     });
 
 // 情况 2: 返回 Promise
 Promise.resolve(10)
     .then(value => {
-        console.log("\n情况2 - 返回 Promise:", value);
+        console.log(new Date().toISOString(), "[L173]", "情况2 - 返回 Promise:", value);
         return Promise.resolve(value * 2);  // 返回 Promise<20>
     })
     .then(value => {
-        console.log("下一个 then 收到:", value);  // 20（自动解包）
+        console.log(new Date().toISOString(), "[L177]", "下一个 then 收到:", value);  // 20（自动解包）
     });
 
 // 情况 3: 不返回任何值
 Promise.resolve(10)
     .then(value => {
-        console.log("\n情况3 - 不返回值:", value);
+        console.log(new Date().toISOString(), "[L183]", "情况3 - 不返回值:", value);
         // 没有 return 语句
     })
     .then(value => {
-        console.log("下一个 then 收到:", value);  // undefined
+        console.log(new Date().toISOString(), "[L187]", "下一个 then 收到:", value);  // undefined
     });
 
 // 情况 4: 抛出错误
 Promise.resolve(10)
     .then(value => {
-        console.log("\n情况4 - 抛出错误:", value);
+        console.log(new Date().toISOString(), "[L193]", "情况4 - 抛出错误:", value);
         throw new Error("出错了");  // 返回 rejected Promise
     })
     .then(value => {
-        console.log("这里不会执行");
+        console.log(new Date().toISOString(), "[L197]", "这里不会执行");
     })
     .catch(error => {
-        console.log("catch 捕获到:", error.message);
+        console.log(new Date().toISOString(), "[L200]", "catch 捕获到:", error.message);
     });
 
 // ============================================
@@ -209,7 +210,7 @@ const promise3 = Promise.resolve("完成");
 
 Promise.all([promise1, promise2, promise3])
     .then(values => {
-        console.log("\nPromise.all 结果:", values);
+        console.log(new Date().toISOString(), "[L213]", "Promise.all 结果:", values);
     });
 
 // ============================================
@@ -222,7 +223,7 @@ const slow = new Promise(resolve => setTimeout(() => resolve("慢"), 1000));
 
 Promise.race([fast, slow])
     .then(result => {
-        console.log("\nPromise.race 结果:", result); // 输出: 快
+        console.log(new Date().toISOString(), "[L226]", "Promise.race 结果:", result); // 输出: 快
     });
 
 // Promise.allSettled - 等待所有 Promise 完成（无论成功失败）
@@ -232,9 +233,9 @@ const p3 = Promise.resolve(200);
 
 Promise.allSettled([p1, p2, p3])
     .then(results => {
-        console.log("\nPromise.allSettled 结果:");
+        console.log(new Date().toISOString(), "[L236]", "Promise.allSettled 结果:");
         results.forEach((result, index) => {
-            console.log(`Promise ${index + 1}:`, result);
+            console.log(new Date().toISOString(), "[L238]", `Promise ${index + 1}:`, result);
         });
     });
 
@@ -245,10 +246,10 @@ const p6 = Promise.reject("错误2");
 
 Promise.any([p4, p5, p6])
     .then(result => {
-        console.log("\nPromise.any 结果:", result); // 输出: 成功
+        console.log(new Date().toISOString(), "[L249]", "Promise.any 结果:", result); // 输出: 成功
     })
     .catch(error => {
-        console.log("所有 Promise 都失败了:", error);
+        console.log(new Date().toISOString(), "[L252]", "所有 Promise 都失败了:", error);
     });
 
 // ============================================
@@ -270,11 +271,13 @@ function riskyOperation() {
 
 riskyOperation()
     .then(result => {
-        console.log("\n", result);
+        console.log(new Date().toISOString(), "[L274]", result);
     })
     .catch(error => {
-        console.error("\n捕获错误:", error.message);
+        console.error(new Date().toISOString(), "[L277]", "捕获错误:", error.message);
     })
     .finally(() => {
-        console.log("清理资源");
+        console.log(new Date().toISOString(), "[L280]", "清理资源");
     });
+
+console.log(new Date().toISOString(), "[L283]", "Promise.js file end");

@@ -24,18 +24,18 @@ function fetchUser(id) {
 // ============================================
 
 async function getUserData() {
-    console.log("开始获取用户数据...");
+    console.log(new Date().toISOString(), "[L27]", "开始获取用户数据...");
     
     try {
         const user = await fetchUser(1);
-        console.log("用户:", user);
+        console.log(new Date().toISOString(), "[L31]", "用户:", user);
         
         await delay(1000);
-        console.log("处理完成");
+        console.log(new Date().toISOString(), "[L34]", "处理完成");
         
         return user;
     } catch (error) {
-        console.error("错误:", error.message);
+        console.error(new Date().toISOString(), "[L38]", "错误:", error.message);
     }
 }
 
@@ -46,18 +46,18 @@ getUserData();
 // ============================================
 
 async function processSteps() {
-    console.log("\n开始处理步骤...");
+    console.log(new Date().toISOString(), "[L49]", "开始处理步骤...");
     
     await delay(1000);
-    console.log("步骤 1 完成");
+    console.log(new Date().toISOString(), "[L52]", "步骤 1 完成");
     
     await delay(1000);
-    console.log("步骤 2 完成");
+    console.log(new Date().toISOString(), "[L55]", "步骤 2 完成");
     
     await delay(1000);
-    console.log("步骤 3 完成");
+    console.log(new Date().toISOString(), "[L58]", "步骤 3 完成");
     
-    console.log("所有步骤完成");
+    console.log(new Date().toISOString(), "[L60]", "所有步骤完成");
 }
 
 //processSteps();
@@ -67,7 +67,7 @@ async function processSteps() {
 // ============================================
 
 async function fetchMultipleUsers() {
-    console.log("\n并行获取多个用户...");
+    console.log(new Date().toISOString(), "[L70]", "并行获取多个用户...");
     
     const users = await Promise.all([
         fetchUser(1),
@@ -75,7 +75,7 @@ async function fetchMultipleUsers() {
         fetchUser(3)
     ]);
     
-    console.log("所有用户:", users);
+    console.log(new Date().toISOString(), "[L78]", "所有用户:", users);
 }
 
 //fetchMultipleUsers();
@@ -87,9 +87,9 @@ async function fetchMultipleUsers() {
 async function handleErrors() {
     try {
         const user = await fetchUser(-1);  // 会失败
-        console.log(user);
+        console.log(new Date().toISOString(), "[L90]", user);
     } catch (error) {
-        console.error("\n捕获错误:", error.message);
+        console.error(new Date().toISOString(), "[L92]", "捕获错误:", error.message);
     }
 }
 

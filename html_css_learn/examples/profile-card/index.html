@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="用于学习 HTML 与 CSS 的个人资料页示例">
+    <title>个人资料页 | HTML 与 CSS 示例</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#main-content" aria-label="前往主要内容">
+        <span class="brand__mark" aria-hidden="true">H</span>
+        <span>HTML &amp; CSS Lab</span>
+      </a>
+      <nav class="site-nav" aria-label="页面导航">
+        <a href="#about">简介</a>
+        <a href="#skills">技能</a>
+        <a href="#contact">联系</a>
+      </nav>
+    </header>
+
+    <main id="main-content" class="page">
+      <section id="about" class="profile" aria-labelledby="profile-title">
+        <div class="profile__identity">
+          <div class="avatar" role="img" aria-label="林晓的文字头像">LX</div>
+          <div class="profile__details">
+            <p class="eyebrow">前端学习者</p>
+            <h1 id="profile-title">林晓</h1>
+            <p class="profile__intro">
+              正在学习如何用语义化 HTML 构建清晰结构，并用现代 CSS
+              创建适应不同屏幕的页面。
+            </p>
+          </div>
+        </div>
+        <a class="button" href="mailto:hello@example.com">发送邮件</a>
+      </section>
+
+      <div class="content-grid">
+        <section id="skills" class="section" aria-labelledby="skills-title">
+          <div class="section__heading">
+            <div>
+              <p class="eyebrow">正在掌握</p>
+              <h2 id="skills-title">核心技能</h2>
+            </div>
+            <span class="count">4 项</span>
+          </div>
+
+          <ul class="skill-list">
+            <li>
+              <strong>语义化 HTML</strong>
+              <span>用正确的元素表达内容含义</span>
+            </li>
+            <li>
+              <strong>盒模型</strong>
+              <span>理解内容、内边距、边框与外边距</span>
+            </li>
+            <li>
+              <strong>Flexbox</strong>
+              <span>处理导航栏和组件内的一维排列</span>
+            </li>
+            <li>
+              <strong>CSS Grid</strong>
+              <span>构建可适应空间的二维页面布局</span>
+            </li>
+          </ul>
+        </section>
+
+        <aside id="contact" class="section contact" aria-labelledby="contact-title">
+          <p class="eyebrow">下一步</p>
+          <h2 id="contact-title">本周计划</h2>
+          <ol class="plan-list">
+            <li><span>01</span>完成个人资料页</li>
+            <li><span>02</span>练习响应式表单</li>
+            <li><span>03</span>复刻一个文章列表</li>
+          </ol>
+          <p class="note">每天修改一个样式，并在开发者工具中确认它为何生效。</p>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <p>这是一个纯 HTML 与 CSS 的学习示例。</p>
+    </footer>
+  </body>
+</html>

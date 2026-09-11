@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="演示 HTML 文档结构和常用语义化标签的学习页面">
+    <title>HTML 基础示例：前端学习周刊</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+
+  <body>
+    <!-- 页面头部：通常放网站名称和主要导航 -->
+    <header class="site-header">
+      <a class="site-name" href="#main-content">前端学习周刊</a>
+
+      <nav aria-label="主导航">
+        <ul class="nav-list">
+          <li><a href="#article">本期文章</a></li>
+          <li><a href="#schedule">学习安排</a></li>
+          <li><a href="#signup">报名表单</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <!-- main 在一个页面中通常只出现一次 -->
+    <main id="main-content" class="page">
+      <!-- article 表示一篇可以独立阅读的内容 -->
+      <article id="article">
+        <header class="article-header">
+          <p class="category">HTML 入门</p>
+          <h1>第一次构建语义清晰的网页</h1>
+          <p>
+            发布于 <time datetime="2026-09-11">2026 年 9 月 11 日</time>
+            · 阅读约 5 分钟
+          </p>
+        </header>
+
+        <figure>
+          <img
+            src="images/html-structure.svg"
+            alt="一个网页由页头、主要内容、侧栏和页脚组成的结构示意图"
+            width="960"
+            height="480"
+          >
+          <figcaption>语义化标签让网页结构更容易被理解。</figcaption>
+        </figure>
+
+        <section aria-labelledby="meaning-title">
+          <h2 id="meaning-title">HTML 描述内容的含义</h2>
+          <p>
+            HTML 不只是把文字放进页面，它还告诉浏览器这些内容是什么。
+            例如，<strong>标题表达层级</strong>，<em>强调元素表达语气</em>，
+            链接则把当前页面与其他资源连接起来。
+          </p>
+          <p>
+            你可以继续查看
+            <a href="../profile-card/index.html">个人资料页综合示例</a>，
+            或在
+            <a href="https://developer.mozilla.org/zh-CN/docs/Web/HTML" target="_blank" rel="noopener noreferrer">MDN HTML 文档</a>
+            中查询标签的完整用法。
+          </p>
+        </section>
+
+        <section aria-labelledby="steps-title">
+          <h2 id="steps-title">编写页面的三个步骤</h2>
+          <ol>
+            <li>根据内容含义选择合适的标签。</li>
+            <li>检查嵌套关系与标题层级。</li>
+            <li>在浏览器中验证链接、表单和键盘操作。</li>
+          </ol>
+
+          <h3>常用内容元素</h3>
+          <ul>
+            <li><code>h1</code> 到 <code>h6</code>：标题层级</li>
+            <li><code>p</code>：独立的文字段落</li>
+            <li><code>ul</code>、<code>ol</code> 和 <code>li</code>：列表</li>
+            <li><code>a</code>：前往其他地址或页面位置</li>
+          </ul>
+        </section>
+
+        <section id="schedule" aria-labelledby="schedule-title">
+          <h2 id="schedule-title">本周学习安排</h2>
+          <div class="table-wrapper">
+            <table>
+              <caption>HTML 基础练习计划</caption>
+              <thead>
+                <tr>
+                  <th scope="col">日期</th>
+                  <th scope="col">主题</th>
+                  <th scope="col">时长</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">周一</th>
+                  <td>文档结构与文字标签</td>
+                  <td>30 分钟</td>
+                </tr>
+                <tr>
+                  <th scope="row">周三</th>
+                  <td>链接、图片与路径</td>
+                  <td>45 分钟</td>
+                </tr>
+                <tr>
+                  <th scope="row">周五</th>
+                  <td>表格与表单</td>
+                  <td>60 分钟</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </article>
+
+      <!-- aside 是与主要文章相关的补充信息 -->
+      <aside class="sidebar" aria-labelledby="tips-title">
+        <h2 id="tips-title">学习提示</h2>
+        <p>先确保没有 CSS 时内容仍然顺序合理，再考虑视觉样式。</p>
+        <blockquote>
+          <p>好的 HTML 结构应该让人只看源码也能理解内容。</p>
+        </blockquote>
+      </aside>
+
+      <!-- form 演示 label、不同控件类型和原生校验 -->
+      <section id="signup" class="signup" aria-labelledby="signup-title">
+        <h2 id="signup-title">报名参加学习小组</h2>
+        <p>带有“必填”标记的字段需要填写后才能提交。</p>
+
+        <form action="#signup" method="get">
+          <div class="form-field">
+            <label for="name">姓名（必填）</label>
+            <input id="name" name="name" type="text" autocomplete="name" required>
+          </div>
+
+          <div class="form-field">
+            <label for="email">邮箱（必填）</label>
+            <input id="email" name="email" type="email" autocomplete="email" required>
+          </div>
+
+          <div class="form-field">
+            <label for="topic">最想学习的主题</label>
+            <select id="topic" name="topic">
+              <option value="semantic-html">语义化 HTML</option>
+              <option value="forms">表单</option>
+              <option value="accessibility">可访问性</option>
+            </select>
+          </div>
+
+          <fieldset>
+            <legend>目前的学习阶段</legend>
+            <label><input name="level" type="radio" value="beginner" checked> 刚刚开始</label>
+            <label><input name="level" type="radio" value="practicing"> 正在练习</label>
+          </fieldset>
+
+          <div class="form-field">
+            <label for="note">想说的话</label>
+            <textarea id="note" name="note" rows="4"></textarea>
+          </div>
+
+          <label class="checkbox-label">
+            <input name="agreement" type="checkbox" required>
+            我愿意每周完成一次练习（必填）
+          </label>
+
+          <button type="submit">提交报名</button>
+        </form>
+      </section>
+    </main>
+
+    <!-- 页面尾部 -->
+    <footer class="site-footer">
+      <p><small>HTML 基础学习示例 · 内容仅用于本地练习</small></p>
+      <a href="#main-content">返回顶部</a>
+    </footer>
+  </body>
+</html>
