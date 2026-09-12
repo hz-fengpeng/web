@@ -1,0 +1,15 @@
+{
+  // 练习专用配置。和上一层的 tsconfig.json 基本一样，只有两处不同：
+  //   1. 继承上层，避免两份配置各改各的
+  //   2. include 只含本目录
+  //
+  // 用法： npm run check:exercises
+  //
+  // exercise-01.ts 是**故意没写类型**的，所以一上来必然有一堆报错 —— 那正是题目。
+  // solutions-01.ts 是参考答案，它始终是干净的。
+  "extends": "../tsconfig.json",
+  "include": ["./**/*.ts"],
+  // 必须显式覆盖：上层配置里的 exclude 带了 "exercises"，
+  // 继承过来会解析成"排除本目录"，结果一个文件都找不到（TS18003）。
+  "exclude": []
+}

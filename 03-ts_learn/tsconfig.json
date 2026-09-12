@@ -1,0 +1,35 @@
+{
+  // tsc 的配置文件。每个 TS 项目都有一个，它决定"检查到什么程度"。
+  // 完整选项说明见 README.md 的「tsconfig.json 逐项说明」。
+  "compilerOptions": {
+    /* ---------- 语言与模块 ---------- */
+    "target": "ES2022",
+    // lib 只列 ES 标准库，不含 DOM —— 这些脚本跑在 node 里，没有 window/document。
+    // 于是 console、setTimeout、process 这些就没人声明了，要靠 @types/node 补上。
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    /* ---------- 类型检查 ---------- */
+    // strict 一次打开一整套最严格的检查（noImplicitAny、strictNullChecks 等）。
+    // 学习阶段一律打开；已有的 JS 项目迁移时可以逐个打开。
+    "strict": true,
+    "skipLibCheck": true, // 不检查 node_modules 里 .d.ts 的内部错误，加快速度
+
+    /* ---------- 只检查，不产出 ---------- */
+    // 运行交给 node（它直接把类型擦掉），tsc 只负责告诉你类型对不对。
+    "noEmit": true,
+    "verbatimModuleSyntax": true, // 强制把"只导入类型"写成 import type
+    "allowImportingTsExtensions": true, // 允许 import "./x.ts"（node 要求写全扩展名）
+
+    /* ---------- 和 node 直接运行保持一致 ---------- */
+    // 只允许"能被擦除"的语法。enum、namespace、参数属性都会被拒绝，
+    // 因为它们编译后需要生成额外的运行时代码，而 node 只是把类型删掉。
+    "erasableSyntaxOnly": true
+  },
+  "include": ["**/*.ts"],
+  // exercises/ 里放着**故意写错**的练习，归 exercises/tsconfig.json 管。
+  // 不排除掉的话，npm run check 会一直报红。
+  "exclude": ["node_modules", "exercises"]
+}

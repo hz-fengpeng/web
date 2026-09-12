@@ -1,6 +1,9 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
+# 注意开头没有 / —— 这样才是"任意层级的 node_modules"。
+# 只写 /node_modules 是锚定在仓库根目录的，子目录（比如 ts_learn/node_modules）不会被忽略。
+node_modules/
 /node_modules
 /.pnp
 .pnp.*
@@ -41,6 +44,7 @@ yarn-error.log*
 next-env.d.ts
 
 .vscode
+.claude
 
 Electron-example/
 Electron-example-agora/

@@ -1,0 +1,16 @@
+{
+  "name": "ts-learn",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TypeScript 学习示例：从 C/C++ 和 JavaScript 两个方向对照着学",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "watch": "tsc --noEmit --watch",
+    "check:exercises": "tsc -p exercises --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "typescript": "^7.0.2"
+  }
+}
