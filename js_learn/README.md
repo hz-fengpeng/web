@@ -29,20 +29,27 @@
 - **垃圾回收**：自动内存管理
 
 ### 学习顺序
-1. 基础语法 (basics/)
-2. 函数与作用域 (functions/)
-3. 对象与数组 (objects-arrays/)
-4. 现代 JS 特性 (modern-js/)
-5. 异步编程 (async/)
-6. 练习题 (exercises/)
+1. 基础语法 (01-basics/)
+2. 函数与作用域 (02-functions/)
+3. 对象与数组 (03-objects-arrays/)
+4. 现代 JS 特性 (04-modern-js/)
+5. 异步编程 (05-async/)
+6. HTML 与 JS 配合 (06-dom/)
+7. 练习题 (exercises/)
 
 ### 运行方式
 ```bash
-# 使用 Node.js 运行
-node filename.js
+# 第 1～5 章：纯 JS，用 Node.js 运行
+node js_learn/01-basics/01-variables.js
 
-# 或在浏览器控制台中运行
+# 第 6 章：JS 操作页面，必须用浏览器打开 .html
+# 直接双击，或：
+open js_learn/06-dom/01-hello-script.html
+# 然后按 F12 / Cmd+Option+I 打开 DevTools，看 Console 面板
 ```
+
+前 5 章只讲 JS 语言本身，`console.log` 打在终端里；第 6 章开始接触页面，
+`console.log` 打在浏览器 DevTools 里。**两者的输出位置不同，别找错地方。**
 
 ### 像 GDB 一样调试 Node.js
 

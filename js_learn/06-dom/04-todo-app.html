@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="综合示例：用数组当唯一数据源，数据一变就重绘的待办清单">
+    <title>04 综合示例：待办清单 | JS 与 HTML 配合</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="04-todo-app.js" defer></script>
+  </head>
+
+  <body>
+    <main>
+      <h1>04 综合示例：待办清单</h1>
+      <p class="lead">
+        这个小应用没有任何新技术，用的全是前 3 课的东西：
+        查找元素、创建节点、事件委托、表单取值。
+        它演示的是<b>组织方式</b> —— 界面 = f(数据)。
+      </p>
+
+      <h2>试试这些操作</h2>
+      <form id="todo-form" class="row">
+        <input type="text" id="todo-input" placeholder="要做什么？" autocomplete="off" required>
+        <button type="submit" class="primary">添加</button>
+      </form>
+
+      <div class="row filters">
+        <button type="button" class="filter-btn active" data-filter="all">全部</button>
+        <button type="button" class="filter-btn" data-filter="active">未完成</button>
+        <button type="button" class="filter-btn" data-filter="done">已完成</button>
+        <span id="todo-count" class="count"></span>
+      </div>
+
+      <ul id="todo-list" class="todo-list"></ul>
+      <p id="todo-empty" class="note" hidden>这里没有符合条件的待办。</p>
+
+      <div class="row">
+        <button type="button" id="todo-clear-done">清除已完成</button>
+        <button type="button" id="todo-reset">恢复默认数据</button>
+      </div>
+
+      <h2>它想说明什么</h2>
+      <p>
+        页面上所有内容都由一个数组 <code>todos</code> 决定。
+        勾选、删除、新增、筛选，每个操作都只做一件事：<b>改数组</b>。
+        改完调用 <code>render()</code>，整个列表按最新数据重新画一遍。
+      </p>
+      <pre><code>事件  →  改数据  →  render()  →  界面更新
+
+永远不要：事件  →  手动去改某一行的文字</code></pre>
+      <p class="note">
+        数据变了就整体重画，看起来"很浪费"，但界面永远不会和数据对不上 ——
+        你不需要记住"删数据的时候还要顺手把 DOM 也删掉"。
+        当页面变得复杂时，这种写法省下的心智负担远大于性能开销。
+        <b>React 的核心就建立在这一点上</b>（界面 = f(数据)），
+        之后再去看 React_learn 会顺很多。
+      </p>
+      <p class="note">
+        数据会存进 <code>localStorage</code>：刷新页面、关掉再打开，内容还在。
+        想清空就点"恢复默认数据"，或者在 Console 里执行
+        <code>localStorage.clear()</code> 再刷新。
+      </p>
+    </main>
+  </body>
+</html>

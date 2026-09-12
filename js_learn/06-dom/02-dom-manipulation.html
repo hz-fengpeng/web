@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="DOM 基础：查找元素、读写内容、切换 class、增删节点、dataset">
+    <title>02 查找与修改 DOM | JS 与 HTML 配合</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="02-dom-manipulation.js" defer></script>
+  </head>
+
+  <body>
+    <main>
+      <h1>02 查找与修改 DOM</h1>
+      <p class="lead">
+        DOM（Document Object Model）是浏览器把 HTML 解析成的一棵对象树。
+        JS 不操作"字符串形式的 HTML"，而是操作这棵树上的对象。
+        本页的小节顺序和 <code>02-dom-manipulation.js</code> 里的一致，可以对照着看。
+      </p>
+
+      <h2>1. 怎么找到元素</h2>
+      <div class="card">
+        <ul id="fruit-list" class="plain-list">
+          <li class="fruit" data-color="红">苹果</li>
+          <li class="fruit" data-color="黄">香蕉</li>
+          <li class="fruit special" data-color="紫">葡萄</li>
+        </ul>
+      </div>
+      <p>
+        查询结果都打印在 Console 里。常用的四种：
+        <code>getElementById</code>、<code>querySelector</code>、
+        <code>querySelectorAll</code>、<code>getElementsByClassName</code>。
+      </p>
+
+      <h2>2. 读和写内容：textContent 与 innerHTML</h2>
+      <p>
+        下面两个框会写入<b>完全相同的一段字符串</b>。左边用 <code>innerHTML</code>，
+        右边用 <code>textContent</code>，点按钮看看差别。
+      </p>
+      <div class="grid-2">
+        <div class="box">
+          <h3>innerHTML（把字符串当 HTML 解析）</h3>
+          <div id="inner-html-box"></div>
+        </div>
+        <div class="box">
+          <h3>textContent（把字符串当纯文本）</h3>
+          <div id="text-content-box"></div>
+        </div>
+      </div>
+      <div class="row">
+        <button id="btn-inject" class="primary">写入这段字符串</button>
+        <button id="btn-clear-text">清空</button>
+      </div>
+      <p class="note">
+        字符串里含有一小段 <code>&lt;img onerror=…&gt;</code>。点按钮后左边会弹出一个 alert
+        —— 那说明这段字符串被浏览器当成真正的代码执行了。这就是 XSS（跨站脚本）的入门版：
+        <b>凡是来自用户的内容（输入框、URL、接口返回），都用 textContent 写入。</b>
+      </p>
+
+      <h2>3. 改样式：优先换 class，而不是直接写 style</h2>
+      <div id="style-box" class="box">这个盒子会被下面几个按钮折腾。</div>
+      <div class="row">
+        <button id="btn-toggle-class">classList.toggle("highlight")</button>
+        <button id="btn-set-style">直接改 style（不推荐）</button>
+        <button id="btn-reset-style">重置</button>
+      </div>
+      <p class="note">
+        直接写 <code>el.style.xxx</code> 会把样式"焊死"在元素上（属于内联样式，优先级很高），
+        很难被其他 CSS 规则覆盖，也不方便复用。推荐做法是切换 class，让 CSS 决定长什么样。
+      </p>
+
+      <h2>4. 创建、插入、删除节点</h2>
+      <div class="card">
+        <ul id="dynamic-list" class="plain-list"></ul>
+      </div>
+      <div class="row">
+        <button id="btn-add-item" class="primary">添加一条</button>
+        <button id="btn-remove-last">删除最后一条</button>
+        <button id="btn-clear-items">清空</button>
+      </div>
+
+      <h2>5. 属性与 dataset</h2>
+      <div class="card">
+        <p>
+          这是个占位链接（点它不会有反应，只是用来读写属性）：
+          <a id="link-demo" href="#js-attribute-demo" title="悬停看看">点我看看 href</a>
+        </p>
+        <p>
+          它的 <code>data-color</code> 是
+          <code id="color-display">紫</code>。
+        </p>
+      </div>
+      <div class="row">
+        <button id="btn-change-data-color">改上面的 data-color</button>
+        <button id="btn-toggle-disabled">切换按钮的 disabled</button>
+        <button id="btn-target-disable" type="button">我是被切换的那个按钮</button>
+      </div>
+      <p class="note">
+        标准属性（id、href、src、value、checked、disabled……）在 JS 里都有同名的直接属性，
+        用起来更顺手；自定义数据则统一用 <code>data-*</code> 属性挂在元素上，
+        通过 <code>el.dataset.xxx</code> 读写。第 4 课会用这个技巧把数据 id 记在 DOM 上。
+      </p>
+    </main>
+  </body>
+</html>

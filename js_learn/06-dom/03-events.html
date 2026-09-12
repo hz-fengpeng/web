@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="事件：addEventListener、事件对象、事件委托、表单与 preventDefault">
+    <title>03 事件 | JS 与 HTML 配合</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="03-events.js" defer></script>
+  </head>
+
+  <body>
+    <main>
+      <h1>03 事件</h1>
+      <p class="lead">
+        前两课是"页面加载后 JS 改一次"。事件让页面开始响应用户 ——
+        点击、输入、提交、按键，都是事件。
+        <b>把输出打开（F12 / Cmd+Option+I）再操作，不然会看不懂在演示什么。</b>
+      </p>
+
+      <h2>1. addEventListener 与 onclick</h2>
+      <div class="row">
+        <button id="btn-onclick">用 onclick 注册两次</button>
+        <button id="btn-listener">用 addEventListener 注册两次</button>
+      </div>
+      <p>
+        两个按钮上都注册了<b>两个</b>处理函数（都会打印日志）。
+        点一下就知道区别：<code>onclick</code> 是给属性赋值，后一个把前一个覆盖了；
+        <code>addEventListener</code> 是往列表里追加监听器，两个都会执行。
+      </p>
+
+      <h2>2. 事件对象：到底是谁被点了</h2>
+      <div id="target-demo" class="card">
+        <p>点卡片里的任意按钮，或者点卡片空白处：</p>
+        <div class="row">
+          <button data-name="按钮 A">按钮 A</button>
+          <button data-name="按钮 B">按钮 B</button>
+        </div>
+      </div>
+      <p id="target-output" class="note">还没有点击。</p>
+      <p>
+        监听器只挂在<b>父容器</b>上，但用户点的是里面的按钮。
+        <code>event.target</code> 是实际被点的那个元素，
+        <code>event.currentTarget</code> 是绑定监听器的那个元素。
+      </p>
+
+      <h2>3. 事件委托：一个监听器管住所有子元素</h2>
+      <div class="row">
+        <ul id="tag-list" class="tag-list">
+          <li class="tag">HTML <button class="tag__remove" title="删除">×</button></li>
+          <li class="tag">CSS <button class="tag__remove" title="删除">×</button></li>
+          <li class="tag">JavaScript <button class="tag__remove" title="删除">×</button></li>
+        </ul>
+      </div>
+      <div class="row">
+        <button id="btn-add-tag" class="primary">新增一个标签</button>
+        <button id="btn-reset-tags">恢复原样</button>
+      </div>
+      <p class="note">
+        点 <code>×</code> 删除标签，新加出来的标签也能删。
+        奥秘是：监听器只挂在 <code>&lt;ul&gt;</code> 上，靠事件冒泡接收子元素的事件。
+        刚 <code>createElement</code> 出来的按钮没有任何监听器，但它照样能响应 ——
+        因为事件会冒泡到父级去处理。
+      </p>
+
+      <h2>4. 表单与 preventDefault</h2>
+      <form id="signup-form" class="card">
+        <div class="row">
+          <label for="signup-name">名字：</label>
+          <input type="text" id="signup-name" name="name" placeholder="输入点什么" autocomplete="off" required>
+          <button type="submit" class="primary">提交</button>
+        </div>
+        <p>实时预览：<span id="name-preview" class="highlight">（还没有输入）</span></p>
+      </form>
+      <p id="form-output" class="note">还没有提交过。</p>
+      <p class="note">
+        表单的默认行为是"提交并刷新整个页面"。刷新一次，之前用 JS 做的一切就没了，
+        所以单页应用里几乎总要写 <code>event.preventDefault()</code>。
+        <b>试试把 03-events.js 里那行 preventDefault 注释掉再提交</b>，
+        地址栏会多出一个 <code>?name=…</code>，页面也重新加载了。
+      </p>
+
+      <h2>5. 常用事件速查</h2>
+      <div class="card">
+        <div class="row">
+          <input type="text" id="event-demo-input" placeholder="在这里打字 / 按回车" autocomplete="off">
+          <button id="event-demo-hover" type="button">把鼠标移上来</button>
+        </div>
+        <pre id="event-demo-log">在下面的日志里会出现 input / change / keydown / focus / blur / mouseenter / mouseleave 事件：</pre>
+      </div>
+      <div class="card">
+        <ul>
+          <li><code>click</code> / <code>dblclick</code> — 单击 / 双击</li>
+          <li><code>input</code> — 输入框内容每变一次就触发（包括粘贴、删除）</li>
+          <li><code>change</code> — 值改变且失去焦点时触发（下拉框选完就触发）</li>
+          <li><code>submit</code> — 表单提交（绑在 <code>&lt;form&gt;</code> 上，不是按钮上）</li>
+          <li><code>keydown</code> / <code>keyup</code> — 键盘按下 / 松开</li>
+          <li><code>mouseenter</code> / <code>mouseleave</code> — 进入 / 离开（不冒泡）</li>
+          <li><code>focus</code> / <code>blur</code> — 获得 / 失去焦点</li>
+          <li><code>DOMContentLoaded</code> — DOM 解析完成（<code>defer</code> 脚本其实不用等它）</li>
+        </ul>
+      </div>
+
+      <h2>6. 取消监听与阻止冒泡</h2>
+      <div class="row">
+        <button id="btn-count-once">这个按钮只响应一次</button>
+        <button id="btn-restore-once">恢复它</button>
+      </div>
+      <p class="note">
+        取消监听要用 <b>同一个函数引用</b>：
+        <code>el.addEventListener("click", fn)</code> 之后，
+        必须用 <code>el.removeEventListener("click", fn)</code>，
+        传一个新的箭头函数是删不掉的 —— 这点和 C 里"传函数指针"是一样的道理。
+        另外 <code>event.stopPropagation()</code> 可以阻止事件冒泡，
+        但它会让祖先元素收不到事件，通常有更好的解法（比如第 3 节的事件委托），能不用就不用。
+      </p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,323 @@
+/* ============================================
+   06-dom 示例共用样式
+   -------------------------------------------------
+   一个页面由三部分组成，各管各的：
+     HTML  负责结构（页面里有什么）—— 各个 .html 文件
+     CSS   负责外观（长什么样）    —— 就是这个文件
+     JS    负责行为（做什么）      —— 各个同名 .js 文件
+
+   所以本目录的 JS 里基本看不到样式，只看到"给元素加/减 class"，
+   具体长什么样由这个文件决定。
+   ============================================ */
+
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --border: #d8dee4;
+  --text: #1f2328;
+  --muted: #656d76;
+  --accent: #2563eb;
+  --accent-soft: #dbeafe;
+  --danger: #cf222e;
+  --success: #1a7f37;
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* hidden 属性由 JS 控制显示隐藏时，不要被其他 display 规则覆盖 */
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  padding: 32px 20px 72px;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text);
+  background: var(--bg);
+}
+
+main {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+}
+
+h2 {
+  margin: 36px 0 12px;
+  padding-bottom: 6px;
+  font-size: 19px;
+  border-bottom: 1px solid var(--border);
+}
+
+h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+p {
+  margin: 10px 0;
+}
+
+.lead {
+  margin-bottom: 28px;
+  color: var(--muted);
+}
+
+code {
+  padding: 1px 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  background: #eaeef2;
+  border-radius: 4px;
+}
+
+pre {
+  margin: 12px 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e6edf3;
+  background: #1f2328;
+  border-radius: var(--radius);
+}
+
+pre code {
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+}
+
+/* ---------- 容器 ---------- */
+
+.card,
+.box {
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.note {
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #6b5900;
+  background: #fff8e5;
+  border-left: 3px solid #d4a72c;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+
+/* ---------- 控件 ---------- */
+
+button {
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+button:disabled {
+  color: #b1b8bf;
+  cursor: not-allowed;
+}
+
+button.primary {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+button.primary:hover:not(:disabled) {
+  color: #fff;
+  opacity: 0.88;
+}
+
+input[type="text"] {
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+input[type="text"]:focus {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+}
+
+a {
+  color: var(--accent);
+}
+
+/* ---------- 列表 ---------- */
+
+.plain-list,
+.tag-list,
+.todo-list,
+.env-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.env-list li {
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.env-item--missing {
+  color: var(--danger);
+}
+
+.plain-list li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.plain-list li:last-child {
+  border-bottom: none;
+}
+
+.plain-list .special {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.created-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* JS 通过切换这个 class 来改变外观（而不是直接写 style） */
+.highlight {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 12px;
+  font-size: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.tag__remove {
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 50%;
+}
+
+.tag__remove:hover {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+/* ---------- 待办清单 ---------- */
+
+.filters {
+  gap: 6px;
+}
+
+.filter-btn.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.count {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+
+.todo-item--done .todo-text {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.todo-text {
+  flex: 1;
+  word-break: break-word;
+}
+
+.todo-remove {
+  padding: 2px 10px;
+  font-size: 13px;
+  color: var(--danger);
+  border-color: transparent;
+  background: none;
+}
+
+.todo-remove:hover {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
