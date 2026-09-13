@@ -11,6 +11,120 @@ React 不是一门新语言，它是一个用 JavaScript 写的**库**。
 - 浏览器原生支持
 - 可以直接操作 DOM（网页元素）
 
+### JSX 是什么
+
+**JSX 既不是 JavaScript，也不是 HTML，它是第三种东西。**
+
+准确说：JSX 是 **JS 的语法扩展**（syntax extension）——长得像 HTML，住在 `.jsx` 文件里，**编译之后一点不剩**。
+
+| | 住在哪 | 浏览器认识吗 | 属性写法 | 编译后 |
+|---|---|---|---|---|
+| **HTML** | `.html` 文件 | ✅ 认识 | `class="box"` `onclick="fn()"` | 不变 |
+| **JS** | `.js` 文件 | ✅ 认识 | 不涉及 | 不变 |
+| **JSX** | `.jsx` 文件 | ❌ **不认识** | `className="box"` `onClick={fn}` | **变成纯 JS 函数调用** |
+
+浏览器不认识 JSX，这正是需要 Vite 的原因之一（见「Vite 是什么」）。
+
+**和 JS 的区别：只有一条**
+
+JSX 是 JS 的**超集**——多出来的只有一件事：可以在 JS 里直接写标签。
+
+```javascript
+const a = 1 + 1                    // 普通 JS，JSX 文件里也能写
+const b = <div>hello</div>         // 只有 JSX 能写，浏览器不认
+```
+
+标签那部分编译后就没了，变成普通的 JS 函数调用：
+
+```javascript
+const b = <div>hello</div>
+//        ↓ 编译
+const b = jsx("div", { children: "hello" })
+```
+
+所以 JSX **只是书写形式**，不是新语言，也不产生新东西。它之于 JS，就像 `#define` 宏之于 C——编译期展开，产物里找不到它。
+
+**但 JSX 也不是 HTML**
+
+虽然长得几乎一样，有两条实质区别。
+
+1. **属性名不是一套规则**
+
+| HTML | JSX |
+|---|---|
+| `class="box"` | `className="box"` |
+| `for="x"` | `htmlFor="x"` |
+| `onclick="fn()"` | `onClick={fn}` |
+| `tabindex="1"` | `tabIndex={1}` |
+
+2. **值是什么，差别更大**
+
+- HTML 的 `onclick="fn()"` 是**一个字符串**，浏览器回头去执行它
+- JSX 的 `onClick={fn}` 是**一个真正的函数对象**
+
+证据：追踪 React 渲染 `<button onClick={...}>` 时调用的 DOM API，`setAttribute` 记录里**根本没有 onClick**——React 没把它写成 HTML 属性，而是自己在内部管理事件（就是「合成事件」）。
+
+**`{}` 里只能写表达式**
+
+从 JS 角度最容易踩的坑：`{}` 里**只能放表达式，不能放语句**。
+
+```
+❌ 写 if 语句
+   <div>{ if (x) { return 1 } }</div>
+   → ERROR: Unexpected "if"
+
+✅ 写三元表达式
+   <div>{ x > 0 ? '正' : '负' }</div>
+
+✅ 写函数调用、方法链
+   <div>{ getName() }{ list.map(i => <li key={i}>{i}</li>) }</div>
+```
+
+原因：表达式**有值**，语句没有。而 `{}` 是要把里面的东西**求值成一个结果**塞进 `children` 的——所以只能放有值的东西。
+
+这也解释了为什么 JSX 里见不到 `for` 循环，只有 `.map()`：`for` 是语句，`.map()` 是表达式（返回一个新数组）。
+
+**JSX 是表达式，不是语句**
+
+这条决定了它能用在哪：
+
+```javascript
+const a = cond ? <p>yes</p> : <p>no</p>             // 能赋值
+const b = [<li key="1">1</li>, <li key="2">2</li>]  // 能进数组
+foo(<div />)                                        // 能当参数传
+```
+
+**一个流传很广的错误说法**
+
+「JSX 必须用 `className`，因为 `class` 是 JS 保留字」——这个理由是错的：
+
+```javascript
+console.log({ class: 'foo', for: 'bar' })
+// { class: 'foo', for: 'bar' }      ← 现代 JS 里完全合法
+```
+
+而且在 React 里直接写 `class` 其实**也能生效**，只是会警告：
+
+```
+用 class     → <div class="box">内容</div>   控制台警告：Invalid DOM property `class`. Did you mean `className`?
+用 className → <div class="box">内容</div>   无警告
+```
+
+所以准确的说法是：**这是 React 定的命名约定，不遵守会警告**。记住约定照写就行，别去记那个错误的原因。
+
+**和 C/C++ 对照**
+
+```
+JSX  ≈  语法糖 / 宏        编译期展开，产物里消失
+JS   ≈  宿主语言           最终真正运行的东西
+```
+
+区别在于 JSX 不是纯文本替换（像 `#define` 那样），它是**结构化的**——`<div>` 的标签和属性会被解析成一棵树，再生成函数调用。这点更像 C++ 的 range-based for：写起来是语法糖，编译后是普通的迭代器调用。
+
+所以你写的 `.jsx` 文件里，**JS 和 JSX 是混在一起的**：`{}` 外面是 JS，`{}` 里面还是 JS，只有标签那部分是 JSX。这也是为什么说「JSX 让你在 JS 里写 UI」——它没有另起炉灶搞一门模板语言，而是直接扩展了 JS 本身。
+
+> 更详细的语法和用法见「学习路径」里的 **02 - JSX 语法**。
+
 ### React 是什么
 - 一个 JavaScript **库**（用 JS 写的工具）
 - 用来构建用户界面（UI）
@@ -52,7 +166,8 @@ function Counter() {
 1. **声明式编程** - 你只需描述界面"应该是什么样"，不用关心"怎么更新"
 2. **组件化** - 把界面拆分成可复用的小块
 3. **自动更新** - 数据变化时，React 自动更新界面
-4. **虚拟 DOM** - React 在内存中计算最小的更新，性能更好
+4. **虚拟 DOM** - React 在内存中计算最小的更新，避免整棵树重建
+   （注意：它快是相对于"每次重建整棵树"，**不等于**比手工最优化的 DOM 操作更快。真正的价值是让你「写起来简单」和「更新量小」兼得，详见「React 的 render 和浏览器的 render」一节）
 
 ### 简单类比
 
@@ -142,10 +257,115 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />)
     ↓
 React 把 <App /> 组件渲染到 <div id="root"> 里
     ↓
-App.jsx 引入了 5 个示例组件
+App.jsx 引入了 10 个示例组件
     ↓
 所有组件渲染完成，你看到完整页面
 ```
+
+**展开：「Vite 把 JSX 转成 JS，返回给浏览器」是什么意思？**
+
+这句话的重点是：**Vite 不生成任何 .js 文件**。它在内存里把 JSX 转成 JS，直接把结果当作 HTTP 响应发回浏览器。磁盘上从头到尾不会多出一个编译后的文件。
+
+浏览器请求 `/src/main.jsx` 时，Vite 真正返回的内容长这样（`curl -i http://localhost:5173/src/main.jsx` 抓到的真实响应）：
+
+```javascript
+// 响应头：Content-Type: text/javascript
+
+import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=70204f9d";
+const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import App from "/src/App.jsx";
+import "/src/index.css";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  /* @__PURE__ */ jsxDEV(React.StrictMode, { children: /* @__PURE__ */ jsxDEV(App, {}, void 0, false, {
+    fileName: "/Volumes/DATA/code/前端/web/04-React_learn/src/main.jsx",
+    lineNumber: 8,
+    columnNumber: 5
+  }, this) }, void 0, false, { /* 以下省略 */ })
+);
+//# sourceMappingURL=data:application/json;base64,...
+```
+
+对比你写的 `src/main.jsx`，Vite 做了三件事，每一件都是为了「让浏览器能跑」：
+
+**1. JSX 变成函数调用**
+
+`<App />` 变成了 `jsxDEV(App, {}, ...)`。开发版叫 `jsxDEV`，会额外带上 `fileName` / `lineNumber` 方便定位错误；打包上线后会换成精简版的 `jsx`。
+
+**2. import 路径被重写**
+
+| 你写的 | 浏览器收到的 | 为什么必须换 |
+|---|---|---|
+| `from 'react'` | `from "/node_modules/.vite/deps/react.js?v=..."` | `'react'` 是**裸模块名**，浏览器不认识，得换成能请求的 URL |
+| `from './App'` | `from "/src/App.jsx"` | 省略了扩展名，浏览器也不认，得补全 |
+| `import './index.css'` | `import "/src/index.css"` | CSS 被包装成了 JS 模块，执行时动态插入 `<style>` 标签（这样改样式也能热更新） |
+
+**3. 末尾内联一段 sourcemap**
+
+那段 base64 解出来，装的是你写的**原始 JSX 源码**。这就是为什么在 F12 里打断点、看报错堆栈，显示的都是 `.jsx` 原文和正确行号——浏览器实际执行的是编译后的 JS，靠 sourcemap 映射回了源码。
+
+> 图中没画但同样重要：`index.html` 也不是原样返回的，Vite 会往里注入 `/@react-refresh`（热更新）和 `/@vite/client`（和服务器通信的 WebSocket 客户端）。第 6 节「修改代码时发生什么」就是它俩在干活。
+
+**动手验证**
+
+```bash
+npm run dev                                  # 启动开发服务器
+curl -i http://localhost:5173/src/main.jsx   # 另开一个终端，看真实响应
+ls src/                                      # 目录里不会多出任何 .js 文件
+```
+
+**和 C/C++ 对照**
+
+| | 对应命令 | 什么时候编译 |
+|---|---|---|
+| **JIT**（运行中编译） | `npm run dev` | 开发时，请求哪个文件才转哪个 |
+| **AOT**（提前编译） | `npm run build` | 上线前，一次性全部编译好写进 `dist/` |
+
+第 5 节说的「按需编译」就是这个 JIT 特性，也是 Vite 冷启动快的原因。**只有 `npm run build` 才会真正往磁盘写文件**，详见后面的「项目发布上线」。
+
+**展开：`ReactDOM.createRoot` 是「接管」不是「创建」**
+
+`createRoot` 这个名字容易让人以为「React 创建了一个 DOM」。**恰恰相反**——它是**接管一个已经存在的 DOM 元素**。名字里的 "Root" 指的是 **React 内部的根对象**，不是 DOM 的根。
+
+流程图上最后一行其实是两个动作：
+
+```javascript
+ReactDOM.createRoot( document.getElementById('root') )  .render( <App /> )
+//      ↑ 拿到句柄                   ↑ 接管容器              ↑ 往句柄里写内容
+```
+
+在 jsdom 里实测（故意给容器预置一段内容）：
+
+```
+createRoot 刚调用完 : <p>我是写死在 index.html 里的</p>        ← 容器一个字节都没动
+render 刚调用完     : <p>我是写死在 index.html 里的</p>        ← 还是旧的！
+等 50ms 之后        : <button class="btn">点击次数: 0</button>  ← 这才出现
+```
+
+三个值得记住的点：
+
+**① `createRoot` 不创建也不修改 DOM** —— 它只返回一个 `ReactDOMRoot` 句柄对象，身上只有 `render` 和 `unmount` 两个方法。真正创建 DOM 的是 `render`。
+
+**② `render()` 是异步的** —— 调用完的那一瞬间 DOM 没变，React 18 把渲染工作排进了调度队列。所以**别在 `render()` 的下一行马上读 DOM**，会读到旧内容。
+
+**③ 首次 render 会顶掉容器里原有的内容，重复 render 是「原地更新」不是「往后追加」** —— 调两次 `render`，容器子节点始终是 1 个。这正是「虚拟 DOM 计算最小更新」的实际表现。
+
+**容器必须先存在**，否则直接报错：
+
+```javascript
+ReactDOM.createRoot(document.getElementById('not-exist'))
+// Error: createRoot(...): Target container is not a DOM element.
+```
+
+**用 C/C++ 对照**
+
+```c
+FILE *fp = fopen("已存在的文件.txt", "w");   // 打开已存在的对象，返回句柄
+```
+
+`fopen` 不创建文件，只拿到操作权并返回句柄；`FILE*` 本身不是文件内容，是个控制结构；真正写数据是后面的 `fprintf`（对应 `root.render`）。`ReactDOMRoot` 就是这个 `FILE*`。
+
+**一句话**：`createRoot` 是「接手一间已经盖好的毛坯房」（房子是 index.html 盖的），`render` 才是「往里搬家具」。
 
 ### 4. 详细的文件执行顺序
 
@@ -216,6 +436,109 @@ Vite 重新编译这个文件
 - **Vite** = 服务员（把菜从厨房端到桌上，还能随时加菜）
 
 当你访问网站时，就像进入餐厅点菜，Vite 把所有组件"端"到浏览器里显示出来。
+
+## React 的 render 和浏览器的 render
+
+**「渲染」这个词被两个不同的东西共用了**，这是学 React 时最容易混淆的一点：
+
+| | 干什么 | 谁负责 |
+|---|---|---|
+| **React 的 render** | 决定 DOM 树**长什么样、该改哪些节点** | React |
+| **浏览器的 render** | 把 DOM + CSS 变成屏幕上的**像素** | 浏览器渲染引擎 |
+
+它们**先后发生，互不替代**：React 干完自己的活，把 DOM 树交给浏览器，浏览器才开始画。
+
+### 实测：React 干的是前者
+
+拦截所有 DOM 操作 API，再让 React 渲染一个 `<div class="box"><h1>标题</h1></div>`：
+
+```
+render 阶段 React 实际调用的：
+1. createElement("h1")
+2. createElement("div")
+3. appendChild(<h1>)
+4. setAttribute("class", "box")
+5. appendChild(<div>)
+```
+
+**就是 `document.createElement` / `appendChild` / `setAttribute`**——和第一节「核心区别」里手写的原生 JS 完全是同一套 API。React 没有任何特权通道，它没法命令浏览器「把这块涂成蓝色」，它唯一能做的就是调用这些 DOM API。
+
+### 一个反向证据
+
+上面这些是在 **jsdom** 里跑的。jsdom 是纯 JS 的 DOM 模拟器，**没有布局引擎、没有像素、没有屏幕，什么都画不出来**——但 React 在里面跑得好好的，DOM 树也建得完全正确。
+
+如果 React 是那个「把界面画出来」的东西，它在 jsdom 里根本没法工作。**这恰好证明 React 不负责「画」。**
+
+### 浏览器接着做了什么
+
+React 改完 DOM 之后，浏览器自己有一套流水线：
+
+```
+DOM 变了
+    ↓
+样式计算（Recalculate Style） —— 哪个元素该有什么样式
+    ↓
+布局 / 回流（Layout）         —— 算每个元素的位置和大小
+    ↓
+绘制（Paint）                —— 填充像素
+    ↓
+合成（Composite）            —— 图层合成，交给 GPU 上屏
+```
+
+这四步 React 一步都插不上手，全是浏览器渲染引擎（Chrome 是 Blink）的活。而且这四步是**最贵**的——React 真正在优化的，是「**让 DOM 少改几次，别老是触发这一整套流程**」。
+
+### 补充：React 内部的「render 阶段」恰恰不碰 DOM
+
+React 内部把工作分成两个阶段，名字起得更容易让人误会：
+
+- **render 阶段** —— 纯计算，算出「要改什么」，**不碰 DOM**，可中断
+- **commit 阶段** —— 真正调用 DOM API，把改动提交上去
+
+也就是说，React 用 "render" 这个词，指的恰恰是**碰 DOM 之前**的那一步，跟「画出来」半点关系都没有。
+
+### 那 React 存在的意义是什么
+
+既然调的还是同一套 API，为什么不直接手写？对比两段代码：
+
+```javascript
+// 原生：数据变了，你得自己算该改哪个节点、怎么改
+count++
+button.textContent = '点击次数: ' + count     // ← 自己找到节点，自己改
+```
+
+```javascript
+// React：你只说"界面 = 什么数据"
+<button>点击次数: {count}</button>            // ← 怎么改 DOM，React 去算
+```
+
+差别不在「谁画像素」——两次都是浏览器画。差别在于**「改 DOM 这件事由谁负责」**：
+
+- **手写**：你得自己维护「数据和 DOM 的同步逻辑」，界面一复杂就容易漏改、错改
+- **React**：你只描述结果，它来算差量、决定调哪几个 DOM API
+
+所以第一节说的「自动更新」要理解准确：**React 自动的是「算差量 + 调 DOM API」，不是「画屏幕像素」**。
+
+**React 替代的是「你手动操作 DOM」这件事，不是「浏览器渲染」这件事。**
+
+### 用 C/C++ 对照
+
+```
+浏览器渲染引擎  ≈  显卡驱动 / GPU          ← 真正干绘制的
+React           ≈  Qt / GTK 这类 GUI 框架   ← 决定什么时候调底层绘制调用
+```
+
+你在 Qt 里调 `label->setText("hello")`——Qt 不会自己去画像素，它最终还是要落到平台的原生绘制调用上。多了一层框架，底下那台渲染机没换。React 之于 DOM，就是 Qt 之于 X11/Win32。
+
+**一句话**：浏览器是画画的，React 是决定「画什么、什么时候重画」的。React 想画也画不了——它会的只是调 DOM API。
+
+### 动手验证
+
+打开 F12 → **Performance** 面板 → 点录制 → 操作一下页面 → 停止录制。火焰图里能清楚看到两类不同的东西：
+
+- 一堆 **JS 调用栈**（React 在里面算差量、调 DOM API）
+- **Layout / Paint / Composite Layers** 这些块（浏览器在算位置、填像素）
+
+它们是**前后相继的两件事**，不是同一件——这就是本节说的「两个 render」。
 
 ## 开始学习
 
