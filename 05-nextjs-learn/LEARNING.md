@@ -134,7 +134,7 @@ pnpm create next-app
 nextjs-learning/
 ├── app/                    # App Router (Next.js 13+ 的新路由系统)
 │   ├── page.tsx           # 首页 (对应路由: /)
-│   ├── layout.tsx         # 根布局组件
+│   ├── layout.tsx         # 根布局组件，对应index.html
 │   └── globals.css        # 全局样式
 ├── public/                # 静态资源文件夹
 └── next.config.ts         # Next.js 配置文件
