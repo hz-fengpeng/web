@@ -2,7 +2,7 @@
 async function getUsers() {
   // 模拟 API 调用
   // 在真实项目中，这里可以是数据库查询或外部 API 调用
-  const res = await fetch('https://jsonplaceholder.typicode.com/users?_limit=5', {
+  const res = await fetch('https://jsonplaceholder.typicode.com/users?_limit=3', {
     // Next.js 扩展了 fetch，支持缓存控制
     cache: 'no-store' // 每次都获取新数据
   })

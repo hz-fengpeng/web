@@ -1,5 +1,87 @@
 # Next.js 学习指南
 
+## 为什么需要 Next.js？
+
+在学怎么用之前，先看清楚它填补的是哪个洞。
+
+### 问题：Vite + React 产出的是一个空壳
+
+看 `04-React_learn/index.html`：
+
+```html
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+```
+
+`#root` 里是空的。浏览器一开始拿到的 HTML **没有任何内容**——它必须先下载 `main.jsx` → React → 你的组件，全部执行完，才往 `#root` 里塞东西。
+
+这个过程叫 **CSR（客户端渲染，Client-Side Rendering）**。
+
+#### 三个直接后果
+
+| 问题 | 原因 |
+|------|------|
+| **SEO 差** | 搜索引擎爬虫抓到的 HTML 就是 `<div id="root"></div>`，正文一个字没有 |
+| **首屏白屏** | JS 下载 + 执行完之前页面是白的，而且资源是一条串行的下载链 |
+| **够不到数据** | 数据库在服务器上，浏览器只能先有 API 层，再 fetch 回来 |
+
+用 C/C++ 打比方：Vite + React 相当于**给客户发一份施工图纸加一支施工队**，客户到了现场才开始盖房子。Next.js 是**把房子盖好再发货**（至少首屏那间已经盖好了）。
+
+### Next.js 做的三件事
+
+#### 1. 在服务器上先把 HTML 拼好（SSR / SSG / RSC）
+
+同一个组件函数，Next.js 可以先在服务器上跑一遍，把生成的 HTML 发出去。浏览器拿到的是**有内容的 HTML**，之后再由 JS "注水"（hydration）接管交互。上面三个问题一次解决。
+
+#### 2. Server Component：直接删掉一层 API
+
+这是 App Router 最本质的变化。以前取数据要写四层：
+
+```
+数据库 → Express API → fetch → useState → 渲染
+```
+
+现在组件本身就跑在服务器上，能直接够到数据源：
+
+```tsx
+// app/users/page.tsx —— 默认就是 Server Component
+export default async function Page() {
+  const users = await db.query('SELECT * FROM users');
+  return <ul>{users.map(u => <li key={u.id}>{u.name}</li>)}</ul>
+}
+```
+
+所以下面「Server Component 能直接访问后端资源」不是一条优化技巧，**是一层架构被删掉了**。
+
+#### 3. 它是框架，不是构建工具
+
+Vite 是构建工具（bundler），只负责把源码变成浏览器能跑的 JS；路由、API 层、图片字体优化一个都没带。
+
+| 需要什么 | Vite + React | Next.js |
+|---------|-------------|---------|
+| 路由 | 自己装 react-router | 目录即路由（`app/about/page.tsx` → `/about`） |
+| 后端 API | 自己起 Express | `app/api/xxx/route.ts` |
+| 图片优化 | 自己做 | `next/image` |
+| 字体 | 自己做 | `next/font` |
+| SSR | 基本不用想 | 默认行为 |
+| 构建配置 | 自己配 | 开箱即用 |
+
+类比：**Vite 是 gcc，Next.js 是带构建系统的一整套 SDK。**
+
+### 反过来：什么时候不需要 Next.js
+
+这点比上面更重要，否则容易过度使用：
+
+- **后台管理、内部工具**：登录后才用，不需要 SEO，Server Component 的价值大打折扣
+- **纯交互密集的应用**：首屏就是一块画布，SSR 帮不上忙
+- **Electron**：用不上。SSR 的前提是"有服务器给爬虫和用户发 HTML"，而 Electron 的页面只在本机跑，既没有搜索引擎也没有网络首屏的问题——那里仍然是 React + Vite 那一套
+
+### 一句话总结
+
+Vite + React 解决「**怎么写组件**」；Next.js 解决「**HTML 谁来生成、路由谁来管、数据谁来取**」。
+
 ## create-next-app 是什么？
 
 `create-next-app` 是 Next.js 官方提供的脚手架工具，用于快速创建新的 Next.js 项目。
@@ -44,7 +126,7 @@ pnpm create next-app
 - Tailwind CSS（从 `postcss.config.mjs` 可以看出）
 - ESLint 配置
 
-这是一个标准的 Next.js 14/15 项目模板。
+版本以 `package.json` 为准：`next 16.1.6` + `react 19.2.3`，也就是 Next.js 16 的模板（App Router 是它的默认路由系统）。
 
 ## 项目结构说明
 
@@ -198,7 +280,8 @@ npm run dev
 #### 第一步：读取配置
 - 读取 `next.config.ts` 配置文件
 - 读取 `tsconfig.json` TypeScript 配置
-- 读取 `tailwind.config.ts` 和 `postcss.config.mjs` 样式配置
+- 读取 `postcss.config.mjs` 样式配置
+- 读取 `app/globals.css`：Tailwind v4 的配置就写在这里（`@import "tailwindcss"` 和 `@theme inline`），**v4 已经取消了 `tailwind.config.ts` 这个文件**
 
 #### 第二步：编译和构建
 - 扫描 `app/` 目录，识别所有路由
@@ -249,7 +332,8 @@ npm run dev
 ## 运行项目
 
 ```bash
-cd nextjs-learning
+cd 05-nextjs-learn
+npm install      # 第一次运行前先装依赖，装完才会有 node_modules
 npm run dev
 ```
 
