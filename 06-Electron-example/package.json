@@ -1,0 +1,115 @@
+{
+  "name": "Agora-Electron-API-Example",
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "postinstall": "npm run rebuild",
+    "start": "electron-webpack dev",
+    "compile": "electron-webpack",
+    "rebuild": "electron-rebuild -f -o ref-napi",
+    "dist": "npm run compile && electron-builder",
+    "dist:mac": "npm run dist -- --mac",
+    "dist:win": "npm run dist -- --win",
+    "dist:win32": "npm run dist:win -- --ia32",
+    "dist:win64": "npm run dist:win -- --x64"
+  },
+  "build": {
+    "appId": "agora.io.ElectronApiExample",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/agora-electron-sdk"
+    ],
+    "buildDependenciesFromSource": true,
+    "compression": "normal",
+    "productName": "Agora-Electron-API-Example",
+    "publish": [],
+    "files": [
+      "!*.log"
+    ],
+    "mac": {
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "gatekeeperAssess": false,
+      "hardenedRuntime": true,
+      "identity": null,
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "type": "distribution"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        "zip"
+      ]
+    },
+    "linux": {
+      "category": "Development",
+      "target": [
+        "AppImage"
+      ]
+    },
+    "directories": {
+      "buildResources": "assets"
+    },
+    "extraResources": [
+      "./extraResources/**"
+    ]
+  },
+  "dependencies": {
+    "agora-electron-sdk": "4.5.2",
+    "antd": "^4.20.3",
+    "download": "^8.0.0",
+    "koffi": "2.8.11",
+    "react": "^18.1.0",
+    "react-color": "^2.19.3",
+    "react-dom": "^18.1.0",
+    "react-router-dom": "^5.2.0",
+    "recharts": "^2.1.13",
+    "ref-napi": "^3.0.3",
+    "source-map-support": "^0.5.16"
+  },
+  "devDependencies": {
+    "@babel/preset-react": "^7.16.7",
+    "@electron/rebuild": "^3.6.0",
+    "@pmmmwh/react-refresh-webpack-plugin": "^0.5.6",
+    "@teamsupercell/typings-for-css-modules-loader": "^2.5.1",
+    "@types/download": "^8.0.2",
+    "@types/react": "^18.1.0",
+    "@types/react-color": "^3.0.6",
+    "@types/react-dom": "^18.0.3",
+    "@types/react-router-dom": "^5.1.6",
+    "@types/ref-napi": "^3.0.7",
+    "electron": "22.0.0",
+    "electron-builder": "^23.1.0",
+    "electron-webpack": "^2.8.2",
+    "fork-ts-checker-webpack-plugin": "^4.1.2",
+    "react-refresh": "^0.13.0",
+    "sass": "^1.56.2",
+    "sass-loader": "~10.2.1",
+    "style-loader": "^2.0.0",
+    "ts-loader": "^8.4.0",
+    "typescript": "^4.5.2",
+    "webpack": "^4.43.0"
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+}
