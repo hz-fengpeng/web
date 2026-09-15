@@ -344,16 +344,19 @@ Electron 包含两个重要的运行环境：
 ```json
 {
   "scripts": {
-    "postinstall": "npm run rebuild",
     "start": "electron-webpack dev",
     "compile": "electron-webpack",
-    "rebuild": "electron-rebuild -f -o ref-napi",
     "dist": "npm run compile && electron-builder"
   }
 }
 ```
 
-`postinstall` 会重新编译 `ref-napi`。这是因为 Electron 使用的 Node ABI 可能与系统 Node.js 不同，带有原生二进制的 Node 模块需要针对 Electron 重建。
+上游 example 里原本还有 `"postinstall": "npm run rebuild"` 和 `"rebuild": "electron-rebuild -f -o ref-napi"`，作用是把 `ref-napi` 针对 Electron 的 Node ABI 重新编译一遍。这里把它们去掉了，原因有两条：
+
+- 项目里没有任何代码引用 `ref-napi`。v4.x 起 Agora 的 FFI 调用已经换成 `koffi`（见 `ProcessVideoRawData`），`ref-napi` 是上游没清干净的残留，`agora-electron-sdk` 自身也不依赖它。
+- `ref-napi@3.0.3` 的 `prebuilds/` 里没有 `darwin-arm64`，Apple Silicon 上只能现场编译。它的编译链会回退到旧版 node-gyp，而旧版 gyp 依赖 Python 的 `distutils`——该模块从 Python 3.12 起已移出标准库，安装会直接失败。
+
+`koffi` 自带 `darwin_arm64` 预编译二进制，不需要重建，所以删掉这一步不影响运行。devDependencies 里的 `@electron/rebuild` 也一并删掉了——它唯一的消费者就是上面那条 `rebuild` 脚本。
 
 ### 5.2 electron-webpack 配置
 
@@ -369,7 +372,7 @@ src/renderer  -> React 渲染进程
 - 支持全局 SCSS 和 CSS Modules。
 - 开发环境启用 React Refresh。
 - 启用 `historyApiFallback`，让 React Router 路由可以刷新。
-- 将 `agora-electron-sdk`、`koffi` 和 `ref-napi` 设置为 external，避免把原生模块打进普通 Webpack bundle。
+- 将 `agora-electron-sdk` 和 `koffi` 设置为 external，避免把原生模块打进普通 Webpack bundle。
 
 ## 6. Electron 主进程
 

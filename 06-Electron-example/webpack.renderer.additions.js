@@ -82,7 +82,6 @@ module.exports = function (config) {
     'webpack',
     'agora-electron-sdk',
     'koffi',
-    'ref-napi',
   ];
   console.log('config', config.module.rules);
   return config;
