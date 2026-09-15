@@ -527,7 +527,90 @@ protected renderConfiguration(): ReactElement | undefined;
 protected renderAction(): ReactElement | undefined;
 ```
 
-### 8.1 组件挂载和卸载
+### 8.1 render 从哪里来
+
+`BaseComponent.render()` 不是 Electron 框架生成的，也不是 React 自动生成的，而是这个示例工程的开发者编写的公共页面实现：
+
+```tsx
+export abstract class BaseComponent<
+  P = {},
+  S extends BaseComponentState = BaseComponentState
+> extends Component<P, S> {
+  render() {
+    const users = this.renderUsers();
+    const configuration = this.renderConfiguration();
+
+    return (
+      <AgoraView className={AgoraStyle.screen}>
+        <AgoraView className={AgoraStyle.content}>
+          {users ? this.renderUsers() : undefined}
+        </AgoraView>
+        <AgoraView className={AgoraStyle.rightBar}>
+          {this.renderChannel()}
+          {configuration}
+          {this.renderAction()}
+        </AgoraView>
+      </AgoraView>
+    );
+  }
+}
+```
+
+这里涉及四种不同的职责：
+
+```text
+React
+  -> 规定 class 组件通过 render() 描述 UI
+  -> 在需要显示或更新组件时调用 render()
+
+工程代码
+  -> 在 BaseComponent 中实现 render() 的具体页面结构
+
+JavaScript / TypeScript 继承
+  -> JoinChannelVideo 没有定义 render() 时，使用父类的 render()
+
+方法重写和动态派发
+  -> 父类 render() 中的 this.renderVideo() 等调用
+     会执行 JoinChannelVideo 覆盖后的方法
+```
+
+`JoinChannelVideo` 的继承关系如下：
+
+```tsx
+export default class JoinChannelVideo
+  extends BaseComponent<{}, State>
+  implements IRtcEngineEventHandler {
+  // 没有定义完整的 render()
+}
+```
+
+因此 React 渲染 `JoinChannelVideo` 时，会沿继承关系找到 `BaseComponent.render()`：
+
+```text
+React 准备渲染 <JoinChannelVideo />
+  -> 查找 JoinChannelVideo.render()
+  -> 子类没有定义 render()
+  -> 沿继承关系找到 BaseComponent.render()
+  -> 执行并取得页面 JSX
+  -> React 将 JSX 对应的 React Element 更新到真实 DOM
+```
+
+父类负责页面骨架，子类负责填充不同示例的内容。例如父类会调用：
+
+```tsx
+this.renderUsers();
+this.renderChannel();
+this.renderConfiguration();
+this.renderAction();
+```
+
+其中 `JoinChannelVideo` 覆盖了 `renderVideo()` 和 `renderConfiguration()`。所以，虽然完整的 `render()` 位于父类，最终页面仍然包含 `JoinChannelVideo` 自己提供的视频区域和配置区域。
+
+需要注意，`render()` 返回的不是 HTML 字符串，而是 JSX。JSX 编译后会形成 React Element 对象，最后由 React DOM 根据这些对象创建或更新浏览器中的真实 DOM。
+
+Electron 在这里不参与 React 组件的继承和 `render()` 调用。Electron 的职责是创建 `BrowserWindow` 并提供运行网页的渲染进程；窗口中的 React 框架负责组件渲染。
+
+### 8.2 组件挂载和卸载
 
 ```tsx
 componentDidMount() {
@@ -542,7 +625,7 @@ componentWillUnmount() {
 
 进入一个示例页面时初始化 Engine，离开页面时释放 Engine。音视频 SDK 持有摄像头、麦克风、线程和原生内存，因此释放步骤不能省略。
 
-### 8.2 用户状态维护
+### 8.3 用户状态维护
 
 `onJoinChannelSuccess` 将 `joinChannelSuccess` 设置为 `true`。
 
@@ -556,7 +639,7 @@ this.setState((preState) => ({
 
 `onUserOffline` 从数组中删除对应 UID。React 随状态变化重新渲染远端用户的视频组件。
 
-### 8.3 页面布局
+### 8.4 页面布局
 
 公共页面分成两部分：
 
@@ -693,7 +776,140 @@ React 首先渲染一个普通 DOM 节点：
 
 组件卸载时使用 `VideoViewSetupRemove` 解除视频和 DOM 的绑定。
 
-需要建立的关键认识是：React 本身不负责解码和绘制视频。React 只创建、更新和销毁容器，Agora 原生 SDK 负责把视频画面渲染到对应容器中。
+这里的 `view` 是渲染进程中的 `HTMLElement`，不是 `BrowserWindow`，也不是通过 IPC 传到主进程的对象。`RtcSurfaceView` 通过 `getHTMLElement()` 找到内层 `div`，再把它放进 `VideoCanvas.view`。
+
+### 10.1 SDK 如何绑定 DOM
+
+`setupLocalVideo`、`setupRemoteVideo` 和 `setupRemoteVideoEx` 在 SDK 的 JavaScript 封装层中会进入 `AgoraRendererManager`：
+
+```text
+RtcSurfaceView.componentDidMount
+  -> setupLocalVideo / setupRemoteVideo
+  -> AgoraRendererManager.addOrRemoveRenderer
+  -> 创建 WebGLRenderer 或 YUVCanvasRenderer
+  -> renderer.bind(view)
+```
+
+`renderer.bind(view)` 并不会把原来的 `div` 变成 `<video>` 标签。SDK 会在传入的 `view` 内部动态创建一个 container 和一个 `canvas`：
+
+```html
+<div id="video-123-456">
+  <div class="sdk-renderer-container">
+    <canvas></canvas>
+  </div>
+</div>
+```
+
+因此，React 源码只写出了最外层的 `div`，真正用于绘制画面的 `canvas` 是 Agora Electron SDK 在运行时创建的。
+
+### 10.2 视频帧从原生层到渲染层
+
+Agora 原生 SDK 负责摄像头采集、编码、网络传输和远端视频解码。这些工作通常在原生 SDK 自己的线程中完成。原生视频帧通过 `AgoraElectronBridge` 暴露给渲染进程中的 SDK JavaScript 层：
+
+```text
+Agora 原生 SDK 内部线程
+  -> 产生或解码视频帧
+  -> AgoraElectronBridge
+  -> RendererCache 获取视频帧
+  -> WebGL/Canvas Renderer 绘制
+```
+
+当前包中的桥接对象来自原生 Node 扩展：
+
+```ts
+const AgoraNode = require('../../../build/Release/agora_node_ext');
+const AgoraElectronBridge = new AgoraNode.AgoraElectronBridge();
+```
+
+当某个 Renderer 被加入缓存后，SDK 会启用视频帧缓存，并在渲染循环中读取新帧：
+
+```ts
+AgoraElectronBridge.EnableVideoFrameCache(this.cacheContext);
+AgoraElectronBridge.GetVideoFrame(
+  this.cacheContext,
+  this.videoFrame,
+  { encodeAlpha: AgoraEnv.encodeAlpha }
+);
+```
+
+视频帧通常包含 Y、U、V 三个分量、宽高、stride 和旋转角度。这里的 `GetVideoFrame` 是从原生层取得数据，不是从 DOM 中读取视频。
+
+### 10.3 WebGL 绘制路径
+
+如果 Electron/Chromium 支持 WebGL，`RendererManager` 默认创建 `WebGLRenderer`。它会：
+
+1. 为 `canvas` 创建 WebGL 上下文。
+2. 创建 Y、U、V 纹理。
+3. 把视频帧中的 YUV 数据上传到纹理。
+4. 使用 GLSL Shader 把 YUV 转换为 RGB。
+5. 调用 `gl.drawArrays()` 把结果绘制到 `canvas`。
+
+简化后的流程是：
+
+```text
+YUV 视频帧
+  -> WebGL 纹理
+  -> YUV 转 RGB Shader
+  -> canvas
+  -> 用户看到视频
+```
+
+### 10.4 无 WebGL 时的绘制路径
+
+如果 WebGL 不可用，SDK 会切换到 `YUVCanvasRenderer`，使用 `yuv-canvas` 进行软件绘制：
+
+```ts
+this.frameSink = YUVCanvas.attach(this.canvas, {
+  webGL: false,
+});
+
+this.frameSink.drawFrame(frame);
+```
+
+这条路径仍然是在渲染进程中操作 `canvas`，只是没有使用 WebGL。
+
+### 10.5 进程和线程的分工
+
+不能把整个过程简单理解成“都在渲染线程中”：
+
+```text
+Electron 主进程
+  -> 创建 BrowserWindow、加载页面、处理系统权限
+
+Electron 渲染进程的 JavaScript/UI 线程
+  -> React 创建 div
+  -> RendererManager 管理 Renderer
+  -> 获取视频帧
+  -> 调用 Canvas/WebGL API
+
+Agora 原生 SDK 内部线程
+  -> 采集、编码、网络、解码和帧缓存
+
+Chromium 图形管线 / GPU 进程
+  -> 执行底层 GPU 绘制
+```
+
+所以，主进程不负责操作这个视频 `div`，也不负责执行 `canvas` 的绘制。DOM、Canvas 和 WebGL 调用发生在渲染进程；Agora 的编解码和网络处理主要发生在原生 SDK 线程；WebGL 的底层 GPU 工作则由 Chromium 图形管线完成。
+
+### 10.6 镜像和资源释放
+
+点击 `RtcSurfaceView` 后，组件切换 `isMirror` 并调用 `updateRenderer()`。SDK 更新 Renderer 上下文，在父元素上应用类似下面的变换：
+
+```css
+transform: rotateY(180deg);
+```
+
+组件卸载时使用 `VideoViewSetupRemove`。SDK 会从 Renderer 缓存移除 Renderer、停止视频帧缓存，并移除动态创建的 `canvas` 和内部 container：
+
+```text
+React 卸载 RtcSurfaceView
+  -> VideoViewSetupRemove
+  -> 移除 Renderer
+  -> 关闭视频帧缓存
+  -> 移除 canvas 和内部 container
+```
+
+需要建立的关键认识是：React 负责创建、更新和销毁视频容器；Agora 原生 SDK 负责产生或解码视频帧；Agora Electron SDK 的渲染层负责把这些帧绘制到渲染进程中的 `canvas` 上。
 
 ## 11. Class 与 Hooks 写法对照
 
