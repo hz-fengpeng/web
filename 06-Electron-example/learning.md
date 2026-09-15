@@ -834,6 +834,76 @@ AgoraElectronBridge.GetVideoFrame(
 
 视频帧通常包含 Y、U、V 三个分量、宽高、stride 和旋转角度。这里的 `GetVideoFrame` 是从原生层取得数据，不是从 DOM 中读取视频。
 
+这里说的「渲染循环」需要具体一点：它既不是 `setInterval`，也不是 `requestAnimationFrame`，而是 SDK 自己用 `setTimeout` 自调度出来的循环。
+
+循环由 `RendererManager` 在添加 Renderer 时启动：
+
+```ts
+rendererCache.addRenderer(this.createRenderer(checkedContext));
+if (!context.useWebCodecsDecoder) {
+  this.startRendering();
+}
+```
+
+`startRendering()` 内部定义了一个 `renderingLooper` 闭包，每跑一轮做四件事：维护这一秒的时间基准、检查是否还有 Renderer、逐个读帧并绘制、决定下一次什么时候再进来：
+
+```ts
+const renderingLooper = () => {
+  // 每秒的第一帧到达时，重置这一秒的时间基准和帧计数
+  if (this._previousFirstFrameTime === 0) {
+    this._previousFirstFrameTime = performance.now();
+    this._currentFrameCount = 0;
+  }
+  ++this._currentFrameCount;
+  const deltaTime = performance.now() - this._previousFirstFrameTime;
+  const expectedTime = (this._currentFrameCount * 1000) / this.renderingFps;
+
+  // 没有 Renderer 了，循环自己退出
+  if (this._rendererCaches.length === 0) {
+    this.stopRendering();
+    return;
+  }
+
+  // 逐个 Renderer 读帧并绘制，内部就是 rendererCache.draw()
+  for (const rendererCache of this._rendererCaches.filter(
+    (cache) => cache instanceof RendererCache
+  )) {
+    this.doRendering(rendererCache);
+  }
+
+  // 还没到这一帧该出现的时间就等差值，已经落后就直接再跑一轮
+  if (deltaTime < expectedTime) {
+    this._renderingTimer = window.setTimeout(renderingLooper, expectedTime - deltaTime);
+  } else {
+    renderingLooper();
+  }
+};
+```
+
+有几点需要留意：
+
+1. 帧率由 `renderingFps` 决定，默认是 15。`setRenderingFps()` 可以修改，修改后会先停止再重启循环。所以这个循环是「尽量按目标帧率把帧均匀铺在这一秒里」，而不是每帧固定间隔。
+2. 落后于计划时不会补等待，而是直接同步递归跑下一轮，因此卡顿时会连续补几帧。
+3. 循环会自己停下来。`_rendererCaches` 为空时调用 `stopRendering()`，把 `setTimeout` 的定时器清掉。
+4. `startRendering()` 开头有 `if (this._renderingTimer) return;`，所以重复调用不会起出两个循环，多次添加 Renderer 是安全的。
+
+另外要区分清楚：`EnableVideoFrameCache` 和 `GetVideoFrame` 并不在同一个方法里。前者在 Renderer 加入缓存时只调用一次，后者在循环的每一轮里调用。两者是「先打开帧缓存，再逐帧取」的关系：
+
+```text
+addRendererToCache
+  -> rendererCache.addRenderer
+  -> EnableVideoFrameCache     只调用一次
+
+renderingLooper 每一轮
+  -> rendererCache.draw
+  -> GetVideoFrame             每轮调用一次
+  -> isNewFrame 为真才绘制
+```
+
+顺带说明一个容易混淆的点：`requestAnimationFrame` 在这个包里确实存在，但用在解码器的 WebCodecs 路径上。上面 `filter` 那一行特意只挑出 `RendererCache` 实例，就是把 WebCodecs 那条路径排除在这个 `setTimeout` 循环之外。
+
+因此，视频画面并不是浏览器每次重绘时顺带画出来的，而是 SDK 用一个 15fps 的定时循环主动去原生层取帧、再画到 `canvas` 上。这也是为什么即使页面没有发生 DOM 变化，视频依然会持续刷新。
+
 ### 10.3 WebGL 绘制路径
 
 如果 Electron/Chromium 支持 WebGL，`RendererManager` 默认创建 `WebGLRenderer`。它会：
