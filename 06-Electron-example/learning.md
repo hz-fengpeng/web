@@ -384,7 +384,7 @@ src/renderer  -> React 渲染进程
 import 'agora-electron-sdk/js/Private/ipc/main.js';
 ```
 
-这行代码初始化 Agora SDK 在 Electron 主进程一侧的 IPC 支持。虽然业务代码主要在渲染进程调用 SDK，但底层原生能力仍需要主进程侧的配合。
+这行代码注册 Agora SDK 在 Electron 主进程一侧的 IPC handler。当前版本只用它查询 Chromium 的 GPU 信息，RTC API 本身不会通过这里转发。由于窗口打开了 `nodeIntegration`，渲染进程会直接加载 `agora_node_ext.node` 并调用原生 RTC SDK。
 
 ### 6.2 创建窗口
 
@@ -748,7 +748,369 @@ protected releaseRtcEngine() {
 
 `leaveChannel` 只离开当前频道，Engine 仍然存在；`release` 会释放整个 Engine。两者用途不同。
 
-## 10. 视频渲染原理
+## 10. agora-electron-sdk 如何连接 Native SDK
+
+`agora-electron-sdk` 不是纯 JavaScript SDK。它在 TypeScript API 和 Agora Native RTC SDK 之间加入了 Node 原生扩展与 Iris 通用桥接层，完整结构如下：
+
+```text
+Electron Renderer / TypeScript API
+  -> 自动生成的 TS/JS 方法包装
+  -> JSON + Buffer
+  -> agora_node_ext.node（Node N-API 原生扩展）
+  -> AgoraRtcWrapper / Iris 通用调用层
+  -> AgoraRtcKit.framework（Native RTC SDK）
+```
+
+在 Windows 上最后几层表现为 `.node` 和一组 DLL；当前 macOS 安装包中则是 `.node` 和 framework。这里并不存在一个名为 `agora_sdk` 的单独文件，真正提供 RTC 能力的是 `AgoraRtcKit.framework`。
+
+### 10.1 JavaScript 入口和单例 Engine
+
+包入口由 `package.json` 的 `main: "js/AgoraSdk"` 指向 `js/AgoraSdk.js`，其 TypeScript 源码位于：
+
+```text
+node_modules/agora-electron-sdk/ts/AgoraSdk.ts
+```
+
+核心实现是：
+
+```ts
+const instance = new RtcEngineExInternal();
+
+export function createAgoraRtcEngine(
+  options?: AgoraEnvOptions
+): IRtcEngineEx {
+  Object.assign(AgoraEnv, options);
+  return instance;
+}
+```
+
+因此，`createAgoraRtcEngine()` 并不会在每次调用时创建新的 Native Engine，而是返回模块加载时创建的同一个 `RtcEngineExInternal`。这也符合 RTC SDK 4.x 一个应用只使用一个 Engine 实例的设计。
+
+`RtcEngineExInternal` 在自动生成的 API 实现之上补充了 Electron 特有逻辑，包括：
+
+- 管理音频设备、Media Engine、Media Player 和空间音频等子对象。
+- 管理事件监听器。
+- 初始化浏览器侧 RendererManager。
+- 将 `setupLocalVideo` 和 `setupRemoteVideo` 接入 Canvas 渲染系统。
+- 在 `release()` 时清理 Renderer、Observer 和事件。
+
+### 10.2 API 如何变成底层调用
+
+以 `joinChannel()` 为例，其 JavaScript 实现位于：
+
+```text
+node_modules/agora-electron-sdk/js/Private/impl/IAgoraRtcEngineImpl.js
+```
+
+简化后的代码如下：
+
+```js
+joinChannel(token, channelId, uid, options) {
+  const apiType = 'RtcEngine_joinChannel_cdbb747';
+  const jsonParams = {
+    token,
+    channelId,
+    uid,
+    options,
+  };
+  const jsonResults = callIrisApi.call(this, apiType, jsonParams);
+  return jsonResults.result;
+}
+```
+
+SDK 没有为几百个 RTC API 分别编写一套 Node C++ 绑定，而是把调用统一转换为：
+
+1. 一个 API 标识，例如 `RtcEngine_joinChannel_cdbb747`。
+2. 一段 JSON 参数。
+3. 可选的二进制 Buffer 数组。
+
+这些参数最终进入 `Private/internal/IrisApiEngine.ts`：
+
+```ts
+AgoraElectronBridge.CallApi(
+  funcName,
+  JSON.stringify(params),
+  buffers,
+  buffers.length
+);
+```
+
+普通参数走 JSON。音视频帧、Metadata、Stream Message 等二进制数据通过独立的 `Buffer[]` 传递，避免把大块二进制数据编码进 JSON。
+
+因此，一次入会调用的完整路径是：
+
+```text
+engine.joinChannel(...)
+  -> "RtcEngine_joinChannel_cdbb747"
+  -> JSON.stringify({ token, channelId, uid, options })
+  -> AgoraElectronBridge.CallApi(...)
+  -> Iris CallIrisApi(...)
+  -> Agora C++ IRtcEngine::joinChannel(...)
+```
+
+API 名末尾的哈希用于区分同名重载。例如，有无 `options` 的 `joinChannel` 会选取不同的 API 标识。
+
+### 10.3 Node 原生扩展
+
+连接 JavaScript 和 C++ 的关键代码是：
+
+```ts
+const AgoraNode = require('../../../build/Release/agora_node_ext');
+
+export const AgoraElectronBridge =
+  new AgoraNode.AgoraElectronBridge();
+```
+
+Node 会把这个路径解析为：
+
+```text
+node_modules/agora-electron-sdk/build/Release/agora_node_ext.node
+```
+
+当前 macOS 文件是同时包含 `x86_64` 和 `arm64` 的 Universal Mach-O。其动态依赖关系为：
+
+```text
+agora_node_ext.node
+  -> AgoraRtcWrapper.framework
+  -> AgoraRtcKit.framework
+```
+
+`agora_node_ext.node` 的运行时搜索路径使用 `@loader_path`，所以会在同级 `build/Release` 目录查找这些 framework。加载 `agora_node_ext.node` 时，macOS 的动态加载器也会一起加载其依赖。
+
+`AgoraElectronBridge` 暴露的主要原生方法包括：
+
+- `InitializeEnv()`：准备 Iris 与 Native Engine 环境。
+- `CallApi()`：统一执行 RTC API。
+- `OnEvent()` / `UnEvent()`：注册和移除原生事件回调。
+- `ReleaseEnv()`：释放 Iris 与 Native Engine 环境。
+- `EnableVideoFrameCache()`：启用视频帧缓存。
+- `GetVideoFrame()`：把缓存中的原始视频帧取到 Node Buffer。
+
+### 10.4 Iris 通用调用层
+
+Iris 是 Agora Native SDK 上方的通用接口分发层。它使用统一的 `ApiParam` 表示 API 调用，也使用相同结构表示异步事件。相关头文件位于：
+
+```text
+build/Release/AgoraRtcWrapper.framework/Versions/A/Headers/
+```
+
+核心结构可以简化为：
+
+```cpp
+struct EventParam {
+  const char *event;
+  const char *data;
+  unsigned int data_size;
+  char *result;
+  void **buffer;
+  unsigned int *length;
+  unsigned int buffer_count;
+};
+
+typedef EventParam ApiParam;
+```
+
+其 C API 包括：
+
+```cpp
+CallIrisApi(...);
+CreateIrisApiEngine(...);
+DestroyIrisApiEngine(...);
+CreateIrisEventHandler(...);
+DestroyIrisEventHandler(...);
+```
+
+`AgoraRtcWrapper` 再链接 `AgoraRtcKit.framework`。从动态依赖和二进制符号可以确认，它最终会调用 Native SDK 的 `createAgoraRtcEngine()` 和 `IRtcEngine::release(bool)` 等接口。
+
+所以这里的“连接”不是跨进程通信，也不是通过网络访问另一个服务，而是在同一 Renderer 进程中通过 Node addon、动态库和 C/C++ 函数调用逐层进入 Native RTC SDK。
+
+### 10.5 初始化和释放过程
+
+示例首先取得单例，然后调用：
+
+```ts
+engine.initialize({
+  appId,
+  logConfig: { filePath: Config.logFilePath },
+  channelProfile: ChannelProfileType.ChannelProfileLiveBroadcasting,
+});
+```
+
+初始化调用链为：
+
+```text
+engine.initialize(context)
+  -> RtcEngine_initialize_0320339
+  -> AgoraElectronBridge.InitializeEnv()
+  -> 创建或准备 Iris ApiEngine 和 Native IRtcEngine
+  -> AgoraElectronBridge.CallApi("RtcEngine_initialize_0320339", ...)
+  -> Native SDK initialize(context)
+```
+
+`RtcEngineExInternal.initialize()` 随后还会把 App Type 设置为 `3`，即 Iris 中定义的 Electron 类型，并在渲染进程创建 `RendererManager` 和 `CapabilityManager`。
+
+释放时顺序相反：
+
+```text
+engine.release()
+  -> 清理 Renderer、Observer 和事件监听器
+  -> CallApi("RtcEngine_release")
+  -> ReleaseEnv()
+```
+
+### 10.6 原生事件如何回到 JavaScript
+
+Node addon 在加载时注册统一回调：
+
+```ts
+AgoraElectronBridge.OnEvent(
+  'call_back_with_buffer',
+  (...params) => handleEvent(...params)
+);
+```
+
+反向事件链为：
+
+```text
+Agora Native SDK event
+  -> Iris EventParam
+  -> NodeIrisEventHandler
+  -> AgoraElectronBridge.OnEvent("call_back_with_buffer")
+  -> handleEvent()
+  -> JSON.parse(data) 并恢复 Buffer
+  -> EVENT_PROCESSORS 选择事件处理器
+  -> IRtcEngineEventHandler / EventEmitter
+  -> onJoinChannelSuccess、onUserJoined 等业务回调
+```
+
+`EVENT_PROCESSORS` 会根据事件名前缀区分不同来源，例如：
+
+- `RtcEngineEventHandler_`：RTC Engine 事件。
+- `AudioFrameObserver_`：音频帧 Observer。
+- `VideoFrameObserver_`：视频帧 Observer。
+- `MediaPlayerSourceObserver_`：Media Player 事件。
+- `MediaRecorderObserver_`：录制事件。
+
+对于 `onStreamMessage`、音视频裸帧等事件，它还会把单独传来的 Buffer 重新挂回解析后的 JavaScript 对象。
+
+### 10.7 为什么不能把 DOM 直接交给 Native VideoCanvas
+
+这里首先要区分两个名称相同、实际含义不同的 `view`。
+
+Agora Native SDK 的 `VideoCanvas.view` 定义为 `view_t`，而 `view_t` 本质上是一个 `void*`：
+
+```cpp
+typedef void* view_t;
+
+struct VideoCanvas {
+  view_t view;
+};
+```
+
+这个指针在不同桌面平台通常表示操作系统原生视图句柄：
+
+- Windows 上通常是 `HWND`。
+- macOS 上通常是 `NSView*`。
+
+React 传入的 `<div>` 则是 Chromium Blink 引擎管理的 DOM 节点。它在 JavaScript 中表现为 `HTMLElement`，但一个 `<div>` 并不对应一个独立的 `NSView` 或 `HWND`。Chromium 会统一处理网页布局和图层合成，再把整个页面输出到少量原生窗口或图形表面。
+
+因此，即使 Node addon 能收到这个 JavaScript 对象，也不能把它直接强制转换为 Native SDK 所需的 `view_t`：
+
+```text
+HTMLElement
+  != NSView*
+  != HWND
+  != Native VideoCanvas.view_t
+```
+
+Electron 可以通过 `BrowserWindow.getNativeWindowHandle()` 取得整个窗口的原生句柄，但不能为任意 DOM `<div>` 取得一个稳定的原生窗口句柄。把视频直接渲染到整个 BrowserWindow 也无法自然服从具体 DOM 节点的布局规则，例如：
+
+- 滚动和元素大小变化。
+- CSS transform 和页面缩放。
+- 裁剪、圆角和 `overflow`。
+- `z-index` 和其他 DOM 元素的遮挡关系。
+- HiDPI 和不同平台的坐标换算。
+- React 组件的挂载和卸载。
+
+所以，更准确的说法不是“Electron 完全不能使用 Native View”，而是“浏览器中的任意 `HTMLElement` 不能直接作为 Native RTC SDK 的原生视图句柄”。理论上可以编写平台相关的原生扩展，在 Electron 窗口上创建子 `NSView` 或 `HWND`，再持续同步 DOM 的位置、尺寸、裁剪和可见性；但这需要处理 Chromium 合成、原生子窗口层级和跨平台差异，复杂度很高。
+
+Agora Electron SDK 选择了另一种方案：在 TypeScript API 中把 `VideoCanvas.view` 声明为 `any`，实际接收 `HTMLElement`；但 `RtcEngineExInternal.setupLocalVideo()`、`setupRemoteVideo()` 和 `setupRemoteVideoEx()` 不会把这个 HTMLElement 送进 Iris 或 Native `setupVideo`，而是把它交给 `AgoraRendererManager`。
+
+```text
+React HTMLElement
+  -> AgoraRendererManager
+  -> 在 HTMLElement 内创建 HTMLCanvasElement
+  -> 从原生帧缓存取得 I420 视频帧
+  -> WebGLRenderer / YUVCanvasRenderer
+  -> Canvas 显示
+```
+
+视频帧数据量大，因此它也没有走普通的 JSON 事件链，而是使用 Iris Rendering 帧缓存：
+
+```text
+Agora Native SDK 产生或解码 I420 视频帧
+  -> IrisRtcRendering 缓存视频帧
+  -> AgoraElectronBridge.GetVideoFrame()
+  -> RendererCache
+  -> WebGLRenderer / YUVCanvasRenderer
+  -> HTML Canvas
+```
+
+Renderer 加入后先调用一次 `EnableVideoFrameCache()`，随后渲染循环反复调用 `GetVideoFrame()`；只有取得新帧时才交给 WebGL 或 Canvas Renderer 绘制。这样视频最终成为 Chromium 自己管理的 Canvas 内容，能够正常参与 DOM 布局、裁剪、缩放和组件生命周期。
+
+这一部分的 DOM 绑定、帧缓存和 YUV 绘制细节在下一章继续展开。
+
+### 10.8 Electron 进程边界
+
+当前示例设置了：
+
+```js
+webPreferences: {
+  nodeIntegration: true,
+  contextIsolation: false,
+  webSecurity: false,
+}
+```
+
+因此，React 所在的 Renderer 进程可以直接 `require()` `agora_node_ext.node`。RTC Engine、Iris 和 Native SDK 都加载在 Renderer 进程内，并不是每次 API 调用都通过 `ipcRenderer` 转发给主进程。
+
+主进程导入的：
+
+```js
+import 'agora-electron-sdk/js/Private/ipc/main.js';
+```
+
+当前只注册 `AGORA_IPC_GET_GPU_INFO`，用于让 Renderer 查询 Chromium GPU 能力。麦克风和摄像头权限请求使用的是示例工程自己注册的另一个 IPC handler。
+
+Webpack 配置把 `agora-electron-sdk` 标记为 external，避免把原生模块塞进普通的 Web bundle；运行时仍由 Node 按真实文件路径加载 SDK。
+
+### 10.9 安装与打包
+
+安装 SDK 时，其脚本会下载两部分内容：
+
+```text
+Electron-mac-4.5.2-napi.zip
+  -> Node N-API addon 和 AgoraRtcWrapper
+
+Agora_Native_SDK_for_Mac_v4.5.1_FULL.zip
+  -> AgoraRtcKit 及音视频扩展 framework
+```
+
+因此，npm 包版本是 `4.5.2`，但这一版本配置的 Iris Wrapper 和 Native SDK 基线是 `4.5.1`。这些版本由包自身配置配套，不应该只替换其中某一个二进制文件。
+
+打包配置使用：
+
+```json
+"asarUnpack": [
+  "node_modules/agora-electron-sdk"
+]
+```
+
+原因是 `.node` 和 framework 必须作为磁盘上的真实文件交给操作系统动态加载，不能像普通 JavaScript 一样直接从 ASAR 内读取执行。
+
+当前安装后的 npm 包没有附带 `AgoraElectronBridge` 的 C++ 源码，只有预编译的 `.node`、framework 和部分 Iris 头文件。因此可以完整阅读 TypeScript API、参数序列化、事件分发和渲染代码，但 Node addon 到 Iris 的具体 C++ 实现需要到上游 `AgoraIO-Extensions/Electron-SDK` 源码仓库继续追踪。
+
+## 11. 视频渲染原理
 
 `src/renderer/components/RtcSurfaceView/index.tsx` 是 React UI 和 Agora 原生视频渲染之间的桥梁。
 
@@ -776,9 +1138,9 @@ React 首先渲染一个普通 DOM 节点：
 
 组件卸载时使用 `VideoViewSetupRemove` 解除视频和 DOM 的绑定。
 
-这里的 `view` 是渲染进程中的 `HTMLElement`，不是 `BrowserWindow`，也不是通过 IPC 传到主进程的对象。`RtcSurfaceView` 通过 `getHTMLElement()` 找到内层 `div`，再把它放进 `VideoCanvas.view`。
+这里的 `view` 是 Electron 封装重新解释后的 `HTMLElement`，不是 Native SDK 的 `view_t`，也不是 `BrowserWindow` 或通过 IPC 传到主进程的对象。`RtcSurfaceView` 通过 `getHTMLElement()` 找到内层 `div`，再把它放进 TypeScript `VideoCanvas.view`；SDK 随后把这个 DOM 节点交给自己的 Canvas Renderer，而不是交给 Native `setupVideo`。
 
-### 10.1 SDK 如何绑定 DOM
+### 11.1 SDK 如何绑定 DOM
 
 `setupLocalVideo`、`setupRemoteVideo` 和 `setupRemoteVideoEx` 在 SDK 的 JavaScript 封装层中会进入 `AgoraRendererManager`：
 
@@ -802,7 +1164,7 @@ RtcSurfaceView.componentDidMount
 
 因此，React 源码只写出了最外层的 `div`，真正用于绘制画面的 `canvas` 是 Agora Electron SDK 在运行时创建的。
 
-### 10.2 视频帧从原生层到渲染层
+### 11.2 视频帧从原生层到渲染层
 
 Agora 原生 SDK 负责摄像头采集、编码、网络传输和远端视频解码。这些工作通常在原生 SDK 自己的线程中完成。原生视频帧通过 `AgoraElectronBridge` 暴露给渲染进程中的 SDK JavaScript 层：
 
@@ -904,27 +1266,177 @@ renderingLooper 每一轮
 
 因此，视频画面并不是浏览器每次重绘时顺带画出来的，而是 SDK 用一个 15fps 的定时循环主动去原生层取帧、再画到 `canvas` 上。这也是为什么即使页面没有发生 DOM 变化，视频依然会持续刷新。
 
-### 10.3 WebGL 绘制路径
+### 11.3 WebGL 绘制路径
 
-如果 Electron/Chromium 支持 WebGL，`RendererManager` 默认创建 `WebGLRenderer`。它会：
+如果 Electron/Chromium 支持 WebGL，`RendererManager` 默认创建 `WebGLRenderer`。这条路径不会先在 CPU 上把 YUV 转成 RGBA，而是把 I420 帧的 Y、U、V 平面分别上传到 GPU，在 fragment shader 中逐像素完成颜色转换。
 
-1. 为 `canvas` 创建 WebGL 上下文。
-2. 创建 Y、U、V 纹理。
-3. 把视频帧中的 YUV 数据上传到纹理。
-4. 使用 GLSL Shader 把 YUV 转换为 RGB。
-5. 调用 `gl.drawArrays()` 把结果绘制到 `canvas`。
-
-简化后的流程是：
+完整调用链可以概括为：
 
 ```text
-YUV 视频帧
-  -> WebGL 纹理
-  -> YUV 转 RGB Shader
+Agora Native SDK
+  -> VideoFrameCache（I420）
+  -> RendererManager 的 15fps 定时循环
+  -> RendererCache.GetVideoFrame()
+  -> WebGLRenderer.drawFrame()
+  -> 上传 Y/U/V/Alpha 纹理
+  -> Fragment Shader 将 YUV 转为 RGB
+  -> gl.drawArrays()
   -> canvas
-  -> 用户看到视频
 ```
 
-### 10.4 无 WebGL 时的绘制路径
+#### 11.3.1 初始化 WebGL
+
+`WebGLRenderer.bind(view)` 会先调用父类的 `bind()`，在传入的 `view` 中创建 container 和 `canvas`，然后按下面的顺序尝试获取 WebGL 上下文：
+
+```ts
+['webgl2', 'webgl', 'experimental-webgl']
+```
+
+创建成功后，它会设置透明清屏色，开启深度测试和 Alpha 混合，并使用下面的混合方式：
+
+```ts
+gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+```
+
+随后编译 vertex shader 和 fragment shader，创建两个顶点缓冲区，以及四张单通道纹理：
+
+```text
+TEXTURE0 -> Ytex
+TEXTURE1 -> Utex
+TEXTURE2 -> Vtex
+TEXTURE3 -> Atex，可选 Alpha 平面
+```
+
+纹理使用 `CLAMP_TO_EDGE`，缩放过滤方式为 `NEAREST`。如果无法创建 WebGL context，fallback 回调会让 `RendererManager` 把当前 renderer 替换成软件版 `YUVCanvasRenderer`。
+
+#### 11.3.2 每帧上传 YUV 数据
+
+`RendererCache` 从原生帧缓存取到新帧后，将同一个 `VideoFrame` 分发给对应的 renderer。`WebGLRenderer.drawFrame()` 使用的数据主要包括：
+
+```ts
+width, height
+yStride, uStride, vStride
+yBuffer, uBuffer, vBuffer
+rotation
+alphaBuffer
+```
+
+这些平面按下面的尺寸上传：
+
+```text
+Y:     yStride x height
+U:     uStride x height / 2
+V:     vStride x height / 2
+Alpha: width   x height
+```
+
+Y 平面是完整分辨率，U/V 平面的高度只有一半，符合 I420/YUV420P 的内存布局。上传前还会调用：
+
+```ts
+gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+```
+
+这样每行数据不必按 4 字节对齐。各平面通过 `gl.texImage2D()` 以 `LUMINANCE + UNSIGNED_BYTE` 的形式上传，因此每个纹理像素只保存一个 8 bit 分量。
+
+这里每收到一帧都会重新调用 `texImage2D()` 上传整张纹理，没有使用 `texSubImage2D()` 做增量更新。
+
+#### 11.3.3 处理 stride 和有效画面区域
+
+视频帧的有效宽度是 `width`，但 Y 平面每行实际占用的字节数是 `yStride`。当 `yStride > width` 时，每行末尾存在用于内存对齐的 padding。例如：
+
+```text
+width   = 1280
+yStride = 1344
+```
+
+此时 Y 纹理实际宽度为 1344，但只有前 1280 个像素是有效图像。代码把纹理坐标的右边界设置为：
+
+```ts
+1 - (yStride - width) / yStride
+```
+
+也就是 `width / yStride`，从而避免 shader 采样右侧 padding。U/V 平面复用相同的归一化纹理坐标，因此这里隐含了 Y、U、V 各平面的有效宽度与 stride 比例一致这一前提。
+
+#### 11.3.4 Shader 将 YUV 转成 RGB
+
+Vertex shader 接收像素坐标 `a_position` 和纹理坐标 `a_texCoord`。它通过 `u_resolution` 把 Canvas 像素坐标转换成 WebGL 的 `[-1, 1]` 裁剪空间：
+
+```glsl
+vec2 zeroToOne = a_position / u_resolution;
+vec2 zeroToTwo = zeroToOne * 2.0;
+vec2 clipSpace = zeroToTwo - 1.0;
+gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+```
+
+其中 Y 坐标乘以 `-1`，是为了处理 DOM/Canvas 与 WebGL 裁剪空间的 Y 轴方向差异。
+
+Fragment shader 使用同一组纹理坐标分别采样 Y、U、V：
+
+```glsl
+y = texture2D(Ytex, vec2(nx, ny)).r;
+u = texture2D(Utex, vec2(nx, ny)).r;
+v = texture2D(Vtex, vec2(nx, ny)).r;
+```
+
+然后使用一组固定系数完成 YUV 到 RGB 的转换：
+
+```glsl
+y = 1.1643 * (y - 0.0625);
+u = u - 0.5;
+v = v - 0.5;
+r = y + 1.5958 * v;
+g = y - 0.39173 * u - 0.81290 * v;
+b = y + 2.017 * u;
+```
+
+这组系数接近 limited-range BT.601。转换完成后，shader 输出：
+
+```glsl
+gl_FragColor = vec4(r, g, b, a);
+```
+
+如果帧中带有 `alphaBuffer`，`a` 来自 Alpha 纹理；否则使用 `a = 1.0`，画面完全不透明。
+
+#### 11.3.5 绘制、旋转和显示模式
+
+整个视频画面由两个三角形组成，共 6 个顶点：
+
+```text
+p1 ----- p2
+ |      / |
+ |    /   |
+ |  /     |
+p4 ----- p3
+```
+
+`rotateCanvas()` 根据帧中的 `rotation` 调整这 6 个顶点的排列顺序，从而在 GPU 绘制阶段支持 0、90、180、270 度旋转。90 度或 270 度时，父类还会交换 Canvas 的宽高。
+
+纹理和顶点准备完成后，真正触发绘制的是：
+
+```ts
+gl.drawArrays(gl.TRIANGLES, 0, 6);
+```
+
+WebGL 只负责将当前帧画满 Canvas，Canvas 如何适配外层 view 则由父类使用 CSS 完成：
+
+- `RenderModeHidden`：按较大的比例缩放，填满容器，多余部分由 `overflow: hidden` 裁剪。
+- `RenderModeFit`：按较小的比例缩放，完整显示视频，容器中可能留有空白区域。
+- 镜像模式：在外层元素上使用 `rotateY(180deg)`。
+
+第一次成功绘制后，父类的 `drawFrame()` 会把此前隐藏的 Canvas 显示出来。
+
+#### 11.3.6 实现上的注意点
+
+这份实现还有几个值得留意的地方：
+
+- 它优先创建 WebGL2 context，但纹理上传使用的是 WebGL1 风格的 `LUMINANCE`。严格的 WebGL2 环境通常应改用 `R8/RED`，因此这里存在兼容性风险。
+- YUV 转换矩阵固定为近似 BT.601 limited range，没有根据 `VideoFrame.colorSpace` 切换 BT.601/BT.709 或 full/limited range，某些输入可能出现颜色偏差。
+- U/V 纹理使用 `NEAREST` 放大，色度平面的低分辨率可能表现为较明显的色块；`LINEAR` 会更平滑。
+- `releaseTextures()` 删除了 Y/U/V 纹理和两个 buffer，但没有删除 `aTexture`，存在 GPU 资源清理遗漏。
+- WebGL context lost 时会立即 fallback 到软件 renderer，并解绑原 renderer；因此原对象中的 context restored 恢复逻辑通常没有机会继续完成恢复。
+- 90/270 度旋转时 Canvas 已交换宽高，但 viewport 仍使用原始的 `width x height`，竖屏画面需要重点验证是否存在裁剪或绘制区域不完整。
+
+### 11.4 无 WebGL 时的绘制路径
 
 如果 WebGL 不可用，SDK 会切换到 `YUVCanvasRenderer`，使用 `yuv-canvas` 进行软件绘制：
 
@@ -938,7 +1450,7 @@ this.frameSink.drawFrame(frame);
 
 这条路径仍然是在渲染进程中操作 `canvas`，只是没有使用 WebGL。
 
-### 10.5 进程和线程的分工
+### 11.5 进程和线程的分工
 
 不能把整个过程简单理解成“都在渲染线程中”：
 
@@ -961,7 +1473,7 @@ Chromium 图形管线 / GPU 进程
 
 所以，主进程不负责操作这个视频 `div`，也不负责执行 `canvas` 的绘制。DOM、Canvas 和 WebGL 调用发生在渲染进程；Agora 的编解码和网络处理主要发生在原生 SDK 线程；WebGL 的底层 GPU 工作则由 Chromium 图形管线完成。
 
-### 10.6 镜像和资源释放
+### 11.6 镜像和资源释放
 
 点击 `RtcSurfaceView` 后，组件切换 `isMirror` 并调用 `updateRenderer()`。SDK 更新 Renderer 上下文，在父元素上应用类似下面的变换：
 
@@ -981,7 +1493,7 @@ React 卸载 RtcSurfaceView
 
 需要建立的关键认识是：React 负责创建、更新和销毁视频容器；Agora 原生 SDK 负责产生或解码视频帧；Agora Electron SDK 的渲染层负责把这些帧绘制到渲染进程中的 `canvas` 上。
 
-## 11. Class 与 Hooks 写法对照
+## 12. Class 与 Hooks 写法对照
 
 Class 示例使用：
 
@@ -1024,7 +1536,7 @@ useEffect(() => {
 
 清理时必须传入注册时的同一个函数引用，因此事件回调使用 `useCallback` 包装。
 
-## 12. 打包相关配置
+## 13. 打包相关配置
 
 `package.json` 中的 `build` 字段由 electron-builder 使用。
 
@@ -1038,7 +1550,7 @@ useEffect(() => {
 - Windows 构建 ZIP。
 - Linux 构建 AppImage。
 
-## 13. 推荐学习路线
+## 14. 推荐学习路线
 
 ### 第一阶段：理解 Electron 外壳
 
@@ -1100,7 +1612,7 @@ hook/hooks/useInitRtcEngine.tsx
 
 目标：能够把同一个 RTC 生命周期分别映射到 class 生命周期和 Hooks effect。
 
-## 14. 动手练习
+## 15. 动手练习
 
 ### 练习一：记录入会耗时
 
@@ -1138,9 +1650,9 @@ hook/hooks/useInitRtcEngine.tsx
 - 状态如何更新。
 - 页面卸载时如何清理资源。
 
-## 15. 阅读代码时需要留意的问题
+## 16. 阅读代码时需要留意的问题
 
-### 15.1 示例代码不等于生产架构
+### 16.1 示例代码不等于生产架构
 
 工程为了让每个 API 示例容易阅读，做了不少简化：
 
@@ -1159,15 +1671,15 @@ hook/hooks/useInitRtcEngine.tsx
 - 日志上传和质量监控。
 - 明确的 RTC 状态管理层。
 
-### 15.2 Token 不应由客户端使用 App Certificate 生成
+### 16.2 Token 不应由客户端使用 App Certificate 生成
 
 App Certificate 属于服务端密钥，不应打包进 Electron 应用。正式应用应由可信服务端生成 Token，再通过业务接口发给客户端。
 
-### 15.3 以事件回调为最终状态依据
+### 16.3 以事件回调为最终状态依据
 
 调用 `joinChannel`、`leaveChannel` 或其他异步 RTC API 后，不应立即假设操作已完成。界面状态应尽量依据对应的 SDK 回调更新。
 
-### 15.4 必须成对清理资源
+### 16.4 必须成对清理资源
 
 阅读每个示例时，可以主动寻找以下配对：
 
@@ -1182,7 +1694,7 @@ joinChannel             <-> leaveChannel
 
 如果只看功能调用而忽略清理调用，很容易在真实项目中遇到摄像头占用、重复回调、内存泄漏或应用退出异常。
 
-## 16. 最小知识闭环
+## 17. 最小知识闭环
 
 完成第一轮学习后，应该能够回答下面的问题：
 

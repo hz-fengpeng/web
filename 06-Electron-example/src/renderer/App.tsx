@@ -19,6 +19,8 @@ import AuthInfoScreen from './examples/config/AuthInfoScreen';
 import Hooks from './examples/hook';
 
 const DATA = [Basic, Advanced, Hooks];
+const SIDEBAR_WIDTH = 280;
+const COLLAPSED_SIDEBAR_WIDTH = 80;
 
 const { Content, Footer, Sider } = Layout;
 
@@ -40,7 +42,10 @@ class App extends Component {
       <Router>
         <Layout hasSider style={{ height: '100vh' }}>
           <Sider
+            className="example-sidebar"
             collapsible
+            width={SIDEBAR_WIDTH}
+            collapsedWidth={COLLAPSED_SIDEBAR_WIDTH}
             onCollapse={(e) =>
               this.setState({
                 collapsed: e,
@@ -91,7 +96,11 @@ class App extends Component {
           </Sider>
           <Layout
             className="site-layout"
-            style={{ marginLeft: this.state.collapsed ? 0 : 200 }}
+            style={{
+              marginLeft: this.state.collapsed
+                ? COLLAPSED_SIDEBAR_WIDTH
+                : SIDEBAR_WIDTH,
+            }}
           >
             <Content>
               <Switch>

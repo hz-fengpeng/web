@@ -17,6 +17,22 @@ body {
   max-height: 100%;
 }
 
+.example-sidebar:not(.ant-layout-sider-collapsed) {
+  .ant-menu-inline .ant-menu-item {
+    height: auto;
+    min-height: 40px;
+    line-height: 1.4;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    white-space: normal;
+  }
+
+  .ant-menu-inline .ant-menu-item > .ant-menu-title-content {
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+  }
+}
+
 .status-bar {
   padding: 4px;
   min-width: 120px;
