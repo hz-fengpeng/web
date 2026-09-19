@@ -8,6 +8,8 @@ import Example07_ConditionalRendering from './examples/07-ConditionalRendering'
 import Example08_Lists from './examples/08-Lists'
 import Example09_Forms from './examples/09-Forms'
 import Example10_Context from './examples/10-Context'
+import Example11_useCallback from './examples/11-useCallback'
+import Example12_useRef from './examples/12-useRef'
 
 function App() {
   return (
@@ -27,6 +29,8 @@ function App() {
       <Example08_Lists />
       <Example09_Forms />
       <Example10_Context />
+      <Example11_useCallback />
+      <Example12_useRef />
     </div>
   )
 }

@@ -609,6 +609,26 @@ npm run dev
 - 错误提示
 - 表单提交处理
 
+### 10 - Context（上下文）
+- 解决 props 层层传递（Props Drilling）的问题
+- createContext / Provider / useContext
+- 主题切换、用户认证等实际场景
+- 用自定义 Hook 封装 Context
+
+### 11 - useCallback
+- 函数组件里的函数为什么每次渲染都是新的
+- 配合 React.memo 避免子组件被无谓地重新渲染
+- 依赖数组的坑：闭包陷阱（stale closure）
+- 实际场景：useEffect 里注册和清理事件监听
+- 什么时候不该用 useCallback
+
+### 12 - useRef
+- useRef 和 useState 的区别（改了不触发渲染）
+- 拿到真实的 DOM 元素（命令式操作 DOM）
+- 存不该触发渲染的值：定时器 id、上一次的值
+- 惰性初始化：只创建一次的东西（第三方 SDK 实例）
+- 什么情况下不该用 useRef
+
 ## 建议
 
 - 仔细阅读每个示例的注释
