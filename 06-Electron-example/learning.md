@@ -302,6 +302,283 @@ Electron Runtime
 
 学习 Electron 时可以先记住一句话：主进程管理桌面应用和系统能力，渲染进程运行 React 页面，两者通过 IPC 通信。
 
+### 3.7 Electron 本体就是一个二进制可执行文件
+
+前面 3.5 里说"Electron 启动主进程"，这里的 Electron 指的是 `node_modules/electron/dist/Electron.app/Contents/MacOS/Electron`：
+
+```text
+node_modules/electron/dist/Electron.app/Contents/MacOS/Electron
+```
+
+这是一个原生可执行文件，不是脚本，也不是 JavaScript 库。3.0 里说"Electron 是 Chromium 和 Node.js 的组合"，这句话的物理形态就在这里：Chromium 和 Node.js 已经被编译进这个二进制里了。
+
+先看 `node_modules/electron/` 目录下有什么：
+
+```text
+node_modules/electron/
+├── index.js        # 只有十几行，作用是把可执行文件路径导出去
+├── cli.js          # 用 child_process.spawn 启动那个可执行文件
+├── install.js      # 安装时下载并解压 Electron
+├── path.txt        # 可执行文件相对 dist/ 的路径
+└── dist/           # 200M，真正的运行时
+```
+
+`index.js` 里没有一行业务逻辑，它读 `path.txt` 再把路径拼出来：
+
+```js
+// node_modules/electron/index.js
+const pathFile = path.join(__dirname, 'path.txt');
+
+function getElectronPath () {
+  let executablePath;
+  if (fs.existsSync(pathFile)) {
+    executablePath = fs.readFileSync(pathFile, 'utf-8');
+  }
+  // ...
+  return path.join(__dirname, 'dist', executablePath);
+}
+
+module.exports = getElectronPath();
+```
+
+`path.txt` 的内容就是一行路径：
+
+```text
+Electron.app/Contents/MacOS/Electron
+```
+
+这里有个容易误解的地方：在**普通 Node.js** 里 `require('electron')` 拿到的是一个**字符串**，不是模块对象，`require('electron').toString()` 得到的就是上面那条路径。只有在 Electron 运行时内部，`require('electron')` 才返回 `app`、`BrowserWindow`、`ipcRenderer` 这些 API，因为那是 Electron 自己实现的模块。
+
+用 `file` 看它的真实类型：
+
+```bash
+file node_modules/electron/dist/Electron.app/Contents/MacOS/Electron
+# Mach-O 64-bit executable arm64
+```
+
+但这个文件只有 49K，真正的运行时不在它里面。用 `otool -L` 看它链接了什么：
+
+```bash
+otool -L node_modules/electron/dist/Electron.app/Contents/MacOS/Electron
+# @rpath/Electron Framework.framework/Electron Framework
+# /usr/lib/libSystem.B.dylib
+```
+
+它自己只是一个薄壳，Chromium 和 Node.js 都在 `Frameworks/Electron Framework.framework` 里：
+
+```text
+Electron.app                                200M
+└── Contents
+    ├── MacOS/Electron                       49K    入口可执行文件
+    ├── Frameworks
+    │   ├── Electron Framework.framework    198M    Chromium + Node.js
+    │   └── Electron Helper*.app            128K    渲染进程 / GPU 进程的子进程
+    └── Resources
+        ├── default_app.asar                106K    不带参数启动时的默认 main
+        └── electron.icns
+```
+
+和写 C/C++ 程序对照一下，两者的结构其实是一样的：
+
+```text
+C / C++ 程序                          Electron
+------------------------------------  --------------------------------------
+main.c 编译出来的 a.out               Contents/MacOS/Electron
+a.out 链接的 libxxx.so / .dylib       Electron Framework.framework（动态库）
+ldd / otool -L 查看依赖                otool -L 查看依赖
+libxxx.so 里是真正的实现              Electron Framework 里是 Chromium 和 Node.js
+```
+
+区别在于"谁写代码"：写 C 的时候，`main()` 是你编译的，逻辑是你链接进二进制的；Electron 已经把"可执行文件 + 动态库"这个组合编译好了，你只需要提供被它加载的 JavaScript。你的代码在 Electron 眼里更像**被读取的输入**，而不是被编译进去的目标文件。
+
+macOS 上 `.app` 其实只是一个目录，`Contents/MacOS/` 下的那个文件才是 Finder 双击时真正执行的东西。名字记录在 `Info.plist` 里：
+
+```bash
+plutil -p node_modules/electron/dist/Electron.app/Contents/Info.plist | grep CFBundleExecutable
+# "CFBundleExecutable" => "Electron"
+```
+
+这也解释了为什么 `node_modules/electron` 装起来这么大：`install.js` 会用 `@electron/get` 从 GitHub Releases 下载对应版本、平台和架构的压缩包，解压到 `dist/`，然后写入 `path.txt`。npm 上的 `electron` 包本身很小，200M 是安装时另外下载的。国内安装慢、需要配置镜像，根源就在这一步。
+
+开发时，谁来启动这个二进制？`electron-webpack dev` 最后做的是：
+
+```js
+// node_modules/electron-webpack/out/dev/dev-runner.js
+spawn(require("electron").toString(), electronArgs, { ... })
+```
+
+`require("electron")` 拿到的正是上面那条路径字符串，然后用 `child_process.spawn` 启动它，并把它指向 Webpack 编译出来的产物目录。`node_modules/electron/cli.js` 是另一条入口，手动执行 `electron .` 时走的就是它，做的事一样：
+
+```js
+// node_modules/electron/cli.js
+const electron = require('./');
+const child = proc.spawn(electron, process.argv.slice(2), { stdio: 'inherit' });
+```
+
+打包时，这个可执行文件会被改名。electron-builder 先复制整个 `Electron.app`，再按 `productName` 重命名二进制和各个 Helper：
+
+```js
+// node_modules/app-builder-lib/out/electron/electronMac.js
+doRename(path.join(contentsPath, "MacOS"), electronBranding.productName, appPlist.CFBundleExecutable)
+```
+
+当前工程的 `productName` 是 `Agora-Electron-API-Example`，所以打包后的路径会变成：
+
+```text
+Agora-Electron-API-Example.app/Contents/MacOS/Agora-Electron-API-Example
+```
+
+同时业务代码被放进 `Resources/app.asar`，启动时由这个可执行文件读取。所以开发阶段和打包阶段的差别只有一处：
+
+```text
+开发阶段：可执行文件 + 源码产物目录
+打包之后：可执行文件 + Resources/app.asar
+```
+
+"Electron 是什么"因此可以这样回答：
+
+```text
+Electron = 一个原生可执行文件（内含 Chromium 和 Node.js）
+         + 你的 JavaScript
+         + 一份告诉它去哪里加载你的 JavaScript 的配置
+```
+
+本节要点：
+
+- `node_modules/electron` 不是纯 JavaScript 包，它的产物是一个原生可执行文件。
+- 在普通 Node.js 里 `require('electron')` 返回路径字符串，在 Electron 运行时里才返回 API 模块。
+- 真正的 Chromium 和 Node.js 在 `Frameworks/Electron Framework.framework`，入口可执行文件只是一个薄壳。
+- 打包不会把你的代码编译成二进制，只是把 Electron 二进制改名，再配上一份 asar。
+
+### 3.8 宿主与载荷：Electron 如何跑起你的代码
+
+既然 Electron 本体是一个可执行文件，那它和业务代码是什么关系？常见的一种说法是"Electron 二进制调用我写的 JS"，方向大致没错，但"调用"这个词容易让人误以为这是两个独立程序之间的请求-响应。更准确的关系是**宿主和载荷**，可以类比解释器：
+
+```text
+python app.py          -> python 二进制加载你的脚本
+java -jar app.jar      -> JVM 加载你的字节码
+node server.js         -> node 二进制加载你的 JS
+electron .             -> Electron 二进制加载你的 JS
+```
+
+不过和解释器类比有一处关键差别：**方向是双向的**。启动时 Electron 读取你的入口文件并执行（这一步是它调用你）；进入运行期之后，是你的代码调用它提供的 API：
+
+```js
+const { app, BrowserWindow } = require('electron');
+
+app.whenReady().then(() => {          // 它通知你：环境准备好了
+  const window = new BrowserWindow(); // 你调用它：创建一个窗口
+});
+```
+
+用 C/C++ 的说法，这更像插件宿主：宿主进程 `dlopen` 一个动态库，然后调用它导出的符号；你的代码是插件，Electron 是宿主。你不是在写一个独立程序，而是在写一份被宿主加载的载荷。
+
+第二个差别是**进程数量**。`main.js` 跑在主进程里，但一旦创建 `BrowserWindow`，Electron 会再拉起 Helper 进程去执行页面里的 JavaScript。也就是说"你的 JS"同时活在多个操作系统进程里：
+
+```text
+Electron 主进程（可执行文件本体）
+  |
+  +-- 执行 src/main/index.js
+  |
+  +-- new BrowserWindow()
+        |
+        v
+      Electron Helper (Renderer).app
+        |
+        +-- 执行页面里的 JavaScript
+        +-- 运行 React
+        +-- 本工程里还直接加载 agora_node_ext.node
+```
+
+本工程因为设置了 `nodeIntegration: true`，渲染进程里也能直接 `require()` 原生模块，所以 RTC Engine 是跑在 Renderer 进程里的（见 10.8）。这一点取决于 `webPreferences` 配置，不是固定行为。
+
+第三点：你交给 Electron 的**不只是 JavaScript**：
+
+```text
+main.js / index.js      主进程入口，由 package.json 的 main 字段指定
+preload.js              预加载脚本，在页面脚本之前执行
+HTML / CSS              渲染进程要加载的页面
+*.node                  原生扩展，例如 agora_node_ext.node
+图片、音频、图标        资源文件
+```
+
+入口的指定方式有两种，本工程开发时走的是第二种：
+
+```bash
+# 方式一：给一个目录，Electron 读该目录 package.json 的 main 字段
+electron .
+
+# 方式二：直接给一个 JS 文件
+electron dist/main/main.js
+```
+
+`electron-webpack dev` 用的是方式二，它把入口文件的绝对路径直接拼进参数里：
+
+```js
+// node_modules/electron-webpack/out/dev/dev-runner.js
+args.push(path.join(projectDir, "dist/main/main.js"));
+startElectron(args, env);
+```
+
+### 3.9 对照一个真实应用：VS Code
+
+VS Code 就是一个打包好的 Electron 应用，可以直接在安装目录里看到 3.7、3.8 说的结构：
+
+```bash
+ls "/Applications/Visual Studio Code.app/Contents/MacOS/"
+# Code
+```
+
+```text
+Visual Studio Code.app/Contents/
+├── MacOS/Code                    130K    从 Electron 改名而来的入口可执行文件
+├── Resources/app/
+│   ├── package.json                      "main": "./out/main.js"
+│   ├── out/                              业务 JavaScript
+│   ├── node_modules/                     依赖
+│   └── extensions/                       内置扩展
+└── Frameworks/
+    ├── Electron Framework.framework      Chromium + Node.js
+    ├── Code Helper (Renderer).app        渲染进程
+    ├── Code Helper (GPU).app             GPU 进程
+    └── Code Helper (Plugin).app          插件进程
+```
+
+`Info.plist` 里记录的名字也印证了 3.7 的改名过程：
+
+```bash
+plutil -p "/Applications/Visual Studio Code.app/Contents/Info.plist" | grep CFBundleExecutable
+# "CFBundleExecutable" => "Code"
+```
+
+Electron 二进制叫 `Electron`，Helper 叫 `Electron Helper`，打包后统一被换成 `Code` 和 `Code Helper`。
+
+还有一个细节：VS Code 把业务代码放在 `Resources/app/` 目录里，而不是打成 `app.asar`。说明 asar 是可选项，本工程是在 `package.json` 里写了 `"asar": true` 才使用 asar 的。
+
+### 3.10 同一个二进制的另一种用法
+
+Electron 二进制除了当桌面应用宿主，还能退化成纯 Node.js 运行：
+
+```bash
+ELECTRON_RUN_AS_NODE=1 ./node_modules/electron/dist/Electron.app/Contents/MacOS/Electron \
+  -e 'console.log(process.versions.node, process.versions.electron, process.type)'
+# 16.17.1 22.0.0 undefined
+```
+
+`process.type` 为 `undefined`，说明 Chromium 那一套完全没有启动，这次执行的只是二进制里内置的 Node.js。这也是为什么 Electron 二进制能同时被当成"桌面应用运行时"和"Node 运行时"使用。
+
+顺带可以验证 3.7 里说的"API 不是 npm 包提供的"：
+
+```bash
+# 在 /tmp 下执行，node_modules 里找不到这个包
+require('electron')  # Error: MODULE_NOT_FOUND
+
+# 在本工程目录下执行，拿到的是 npm 包导出的路径字符串
+require('electron')  # string  .../node_modules/electron/dist/Electron.app/Contents/MacOS/Electron
+```
+
+在 Node 模式下 `require('electron')` 只会走普通的 `node_modules` 解析，拿到的是那个路径字符串；只有在 Electron 运行时里，它才被替换成内置的 API 模块。这从反面说明：`app`、`BrowserWindow` 这些 API 是二进制内置的，跟 `npm install electron` 装下来的那个包没有关系。
+
 ## 4. 总体架构
 
 ```text
