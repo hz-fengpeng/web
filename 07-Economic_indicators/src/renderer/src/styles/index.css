@@ -1,0 +1,89 @@
+@import 'tailwindcss';
+
+/*
+ * 设计令牌 —— 与开发文档 §6.2 一一对应。
+ * 语义变量定义在 :root，深色模式在媒体查询里整套替换；
+ * @theme inline 让生成的工具类直接引用 var()，因此主题是运行时切换的。
+ */
+
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-ink: var(--c-ink);
+  --color-ink-2: var(--c-ink-2);
+  --color-ink-muted: var(--c-ink-muted);
+  --color-grid: var(--c-grid);
+  --color-axis: var(--c-axis);
+  --color-hairline: var(--c-hairline);
+  --color-accent: var(--c-accent);
+
+  /* 涨跌语义色：独立于分类色槽位，不参与序列配色 */
+  --color-up: var(--c-up);
+  --color-down: var(--c-down);
+
+  /* 状态色固定，不随主题变化（§6.2） */
+  --color-good: #0ca30c;
+  --color-warning: #fab219;
+  --color-serious: #ec835a;
+  --color-critical: #d03b3b;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei',
+    sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+:root {
+  --c-canvas: #f9f9f7;
+  --c-surface: #fcfcfb;
+  --c-ink: #0b0b0b;
+  --c-ink-2: #52514e;
+  --c-ink-muted: #898781;
+  --c-grid: #e1e0d9;
+  --c-axis: #c3c2b7;
+  --c-hairline: rgba(11, 11, 11, 0.1);
+  --c-accent: #2a78d6;
+
+  /* 红涨绿跌 —— 中国金融惯例（§6.3） */
+  --c-up: #d03b3b;
+  --c-down: #0ca30c;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-canvas: #0d0d0d;
+    --c-surface: #1a1a19;
+    --c-ink: #ffffff;
+    --c-ink-2: #c3c2b7;
+    --c-ink-muted: #898781;
+    --c-grid: #2c2c2a;
+    --c-axis: #383835;
+    --c-hairline: rgba(255, 255, 255, 0.1);
+    --c-accent: #3987e5;
+    --c-up: #e66767;
+    --c-down: #0ca30c;
+
+    color-scheme: dark;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 数值一律用等宽数字，避免逐行跳动 */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,15 @@
+node_modules/
+out/
+dist/
+# electron-builder 的产物目录（electron-builder.yml 里的 directories.output）。
+# 里面是未压缩的 .app（约 289MB），一个 `git add -A` 就会把它整个吞进仓库。
+release/
+*.log
+.DS_Store
+tsconfig.*.tsbuildinfo
+
+# SQLite 的临时边车文件。数据全在 .db 主文件里，这两个随连接生灭：
+# 提交它们没有意义，而一个过期的 -wal 配上新主库文件反而会让 SQLite
+# 恢复出混合数据。
+*.db-wal
+*.db-shm

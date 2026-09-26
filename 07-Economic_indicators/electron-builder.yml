@@ -1,0 +1,26 @@
+appId: com.pengfeng.economic-indicators
+productName: 中国宏观经济指标
+directories:
+  output: release
+
+files:
+  - out/**
+  - package.json
+
+extraResources:
+  # ★ 数据来源，不是可选项。
+  # 应用不生成任何数据，全部读这个文件（src/main/db/bootstrap.ts）。
+  # 打包后主进程按 `process.resourcesPath/macro.db` 找它——extraResources
+  # 落到 Contents/Resources/，正好是那个位置。
+  # 漏了这两行，打出来的 .app 一启动就抛「内置示例数据库缺失」。
+  - from: resources/macro.db
+    to: macro.db
+
+mac:
+  category: public.app-category.finance
+  # 本机自用，不分发 → 不签名，直接出可运行的 .app（免去公证流程）。
+  identity: null
+  target:
+    - target: dir
+      arch:
+        - arm64
