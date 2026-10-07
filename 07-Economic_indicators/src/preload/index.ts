@@ -10,6 +10,7 @@ const api: MacroApi = {
   getSeries: (req) => ipcRenderer.invoke(IPC.getSeries, req),
   getDataStatus: () => ipcRenderer.invoke(IPC.getDataStatus),
   refresh: () => ipcRenderer.invoke(IPC.refresh),
+  exportFile: (req) => ipcRenderer.invoke(IPC.exportFile, req),
 }
 
 contextBridge.exposeInMainWorld('macro', api)

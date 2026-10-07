@@ -1,17 +1,18 @@
 import type { Indicator } from './types'
+import { EXPANDED_INDICATORS } from './expandedIndicators'
 
 /**
  * ★ 指标元数据的单一事实源。
  * UI 与测试全部从这里读取——不存在第二处定义。
  *
  * ★ 目前这些指标的值来自内置的 `resources/macro.db`（M1d 起），
- *   是合成数据，不是真实统计。`note` 里记录的口径是**真实口径**，
+ *   是合成数据，不是真实统计。`note` 说明统计口径与示例计算规则，
  *   用来指导 UI 该怎么呈现（哪个是累计、哪个是季调），不代表当前库里的
  *   数值就是真的。
  *
- * 其余 P0 指标（M2/社融/进出口/外储/财政）待接入真实数据源后加入。
+ * P0 指标均有内置示例序列；真实数据采集仍未接入。
  */
-export const INDICATORS: Indicator[] = [
+const INITIAL_INDICATORS: Indicator[] = [
   {
     id: 'cn.ind_prod.yoy',
     nameZh: '规模以上工业增加值：当月同比',
@@ -143,6 +144,182 @@ export const INDICATORS: Indicator[] = [
     note: '按不变价格计算。季度 GDP 有初步核算、初步核实、最终核实三次发布，修订值以 revision 字段保留。',
   },
 ]
+
+/** 第二版内置目录新增的 P0 指标；用于旧示例库的追加升级。 */
+export const P0_ADDITIONS: Indicator[] = [
+  {
+    id: 'cn.cpi_core.yoy',
+    nameZh: '扣除食品和能源价格的居民消费价格指数：当月同比',
+    nameShort: '核心 CPI 同比',
+    category: 'price',
+    unit: '%',
+    frequency: 'month',
+    valueType: 'yoy',
+    seasonalAdj: false,
+    decimals: 1,
+    isHeadline: false,
+    note: '核心 CPI 扣除食品和能源价格，反映其余消费品与服务价格的同比变化。与包含食品、能源的总体 CPI 是不同统计范围，不是环比指标。',
+  },
+  {
+    id: 'cn.pmi.non_mfg',
+    nameZh: '非制造业商务活动指数',
+    nameShort: '非制造业 PMI',
+    category: 'sentiment',
+    unit: '点',
+    frequency: 'month',
+    valueType: 'index',
+    seasonalAdj: true,
+    decimals: 1,
+    isHeadline: false,
+    note: '通常称为非制造业 PMI，此处展示其中的商务活动指数，涵盖建筑业和服务业。经季节调整，50 为荣枯分界线，高于 50 表示商务活动扩张。',
+  },
+  {
+    id: 'cn.trade.export_yoy',
+    nameZh: '货物出口金额：当月同比（美元计价）',
+    nameShort: '出口同比',
+    category: 'external',
+    unit: '%',
+    frequency: 'month',
+    valueType: 'yoy',
+    seasonalAdj: false,
+    decimals: 1,
+    isHeadline: true,
+    note: '货物贸易出口金额按美元计价计算的当月同比，非人民币口径、非累计同比，也非出口实物量增速。示例库展示单月期间，1 月与 2 月不合并。',
+  },
+  {
+    id: 'cn.trade.balance',
+    nameZh: '货物贸易差额：当月值（美元计价）',
+    nameShort: '贸易差额',
+    category: 'external',
+    unit: '亿美元',
+    frequency: 'month',
+    valueType: 'level',
+    seasonalAdj: false,
+    decimals: 1,
+    isHeadline: false,
+    note: '货物出口金额减进口金额，按美元计价的当月金额。正值为顺差，负值为逆差；不包含服务贸易，不是年内累计差额。',
+  },
+  {
+    id: 'cn.m1.yoy',
+    nameZh: '狭义货币（M1）余额：同比',
+    nameShort: 'M1 同比',
+    category: 'money',
+    unit: '%',
+    frequency: 'month',
+    valueType: 'yoy',
+    seasonalAdj: false,
+    decimals: 1,
+    isHeadline: false,
+    note: '月末 M1 余额同比。2025 年起 M1 在原流通中货币、单位活期存款的基础上，增加个人活期存款和非银行支付机构客户备付金。修订口径同比按可比口径计算；示例历史不构成真实回溯统计，跨定义区间需留意统计范围变化。',
+  },
+  {
+    id: 'cn.m2.yoy',
+    nameZh: '广义货币（M2）余额：同比',
+    nameShort: 'M2 同比',
+    category: 'money',
+    unit: '%',
+    frequency: 'month',
+    valueType: 'yoy',
+    seasonalAdj: false,
+    decimals: 1,
+    isHeadline: true,
+    note: '月末广义货币 M2 余额同比，反映货币存量的同比变化，不是当月新增货币量；与 M1 的统计范围不同。',
+  },
+  {
+    id: 'cn.tsf.stock_yoy',
+    nameZh: '社会融资规模存量：同比',
+    nameShort: '社融存量同比',
+    category: 'money',
+    unit: '%',
+    frequency: 'month',
+    valueType: 'yoy',
+    seasonalAdj: false,
+    decimals: 1,
+    isHeadline: true,
+    note: '月末实体经济从金融体系获得的资金余额同比。这里展示社会融资规模存量增速，不是当月社融增量；统计范围包含贷款、企业债券、政府债券等融资形式。',
+  },
+  {
+    id: 'cn.loan.new',
+    nameZh: '金融机构新增人民币贷款：当月值',
+    nameShort: '新增人民币贷款',
+    category: 'money',
+    unit: '亿元',
+    frequency: 'month',
+    valueType: 'level',
+    seasonalAdj: false,
+    decimals: 0,
+    isHeadline: false,
+    note: '金融机构人民币贷款当月增量，单位为亿元，非贷款余额、非年内累计新增。与社融口径中的“对实体经济发放的人民币贷款”统计范围不同，不能互换；负值表示当月净减少。',
+  },
+  {
+    id: 'cn.lpr.1y',
+    nameZh: '贷款市场报价利率（LPR）：1 年期',
+    nameShort: 'LPR 1 年期',
+    category: 'money',
+    unit: '%',
+    frequency: 'month',
+    valueType: 'level',
+    seasonalAdj: false,
+    decimals: 2,
+    isHeadline: false,
+    note: '1 年期贷款市场报价利率，通常每月 20 日公布，遇节假日顺延。这是该月公布的报价，非月平均利率；期末日期仅用于月度对齐，因此发布日可以早于期末。示例发布日期仅按周末顺延，不模拟法定节假日。',
+  },
+  {
+    id: 'cn.lpr.5y',
+    nameZh: '贷款市场报价利率（LPR）：5 年期以上',
+    nameShort: 'LPR 5 年期以上',
+    category: 'money',
+    unit: '%',
+    frequency: 'month',
+    valueType: 'level',
+    seasonalAdj: false,
+    decimals: 2,
+    isHeadline: false,
+    note: '5 年期以上贷款市场报价利率，通常每月 20 日公布，遇节假日顺延。这是该月公布的报价，非月平均利率；期末日期仅用于月度对齐，因此发布日可以早于期末。示例发布日期仅按周末顺延，不模拟法定节假日。',
+  },
+  {
+    id: 'cn.fx_reserve.level',
+    nameZh: '外汇储备：月末余额',
+    nameShort: '外汇储备',
+    category: 'external',
+    unit: '亿美元',
+    frequency: 'month',
+    valueType: 'level',
+    seasonalAdj: false,
+    decimals: 2,
+    isHeadline: false,
+    note: '月末国家外汇储备余额，按美元计价，单位为亿美元；不含黄金储备。余额变化同时受汇率、资产价格与交易等因素影响，不能把差值直接解释为跨境资金流入或流出。',
+  },
+  {
+    id: 'cn.fx_rate.usd_cny',
+    nameZh: '美元兑人民币汇率中间价',
+    nameShort: '美元兑人民币中间价',
+    category: 'external',
+    unit: '元/美元',
+    frequency: 'day',
+    valueType: 'level',
+    seasonalAdj: false,
+    decimals: 4,
+    isHeadline: false,
+    note: '1 美元折合的人民币元数，中间价并非即期成交价或收盘价。数值上升表示人民币相对美元贬值，不等于经济状况改善。真实中间价在交易日发布；示例库仅按周一至周五排列，不模拟法定节假日。',
+  },
+  {
+    id: 'cn.fiscal.revenue_cum_yoy',
+    nameZh: '全国一般公共预算收入：累计同比',
+    nameShort: '财政收入累计同比',
+    category: 'fiscal',
+    unit: '%',
+    frequency: 'month',
+    valueType: 'cumulative_yoy',
+    seasonalAdj: false,
+    decimals: 1,
+    isHeadline: true,
+    note: '全国一般公共预算收入的年初至当期累计同比，包括税收收入与非税收入，不含政府性基金收入。每年重新起算，1—2 月合并发布，非当月同比；不得据此反推单月增速。',
+  },
+]
+
+export const CATALOG_ADDITIONS: Indicator[] = [...P0_ADDITIONS, ...EXPANDED_INDICATORS]
+export const INDICATORS: Indicator[] = [...INITIAL_INDICATORS, ...CATALOG_ADDITIONS]
 
 export const byId = (id: string): Indicator | undefined => INDICATORS.find((i) => i.id === id)
 

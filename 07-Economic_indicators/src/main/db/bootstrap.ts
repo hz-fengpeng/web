@@ -6,8 +6,8 @@ import { close, type Db } from './adapter'
  * 内置示例数据库的落地。
  *
  * **应用不生成任何数据。** `resources/macro.db` 是随项目一起发布的、
- * 已经装好 535 条观测的 SQLite 文件——生成它的脚本已删除（见开发文档 §3.2.0）。
- * 启动时只做一件事：把它复制到 userData，之后一律读写 userData 那份。
+ * 已经装好观测的 SQLite 文件；开发时的目录扩充脚本不在应用中运行。
+ * 首次复制到 userData；旧目录只追加新指标的静态行（见 catalog.ts）。
  *
  * 为什么是复制而不是直接打开内置文件：
  *

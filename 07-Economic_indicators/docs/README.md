@@ -93,3 +93,7 @@
 | IPC 契约 | `src/shared/types.ts` |
 | npm scripts | `package.json` |
 | 图表色值 | `src/renderer/src/styles/index.css` 的 `--c-*` 变量 |
+
+## 当前指标目录
+
+[07-指标目录与示例数据.md](07-指标目录与示例数据.md) 由开发扩充脚本生成，列出 109 个指标、层级、频率和假数据覆盖范围。

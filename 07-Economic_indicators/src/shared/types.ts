@@ -12,6 +12,7 @@ export type Category =
   | 'employment'
   | 'external'
   | 'fiscal'
+  | 'society'
 
 export type Frequency = 'day' | 'month' | 'quarter' | 'year'
 
@@ -47,13 +48,18 @@ export interface Indicator {
   seasonalAdj: boolean
   decimals: number
   isHeadline: boolean
+  /** 未标注的初始指标属于 P0。 */
+  tier?: 'P0' | 'P1' | 'P2'
+  region?: string
+  /** 由示例观测计算，必须在界面与导出中标明。 */
+  isDerived?: boolean
   /** ★ 口径说明。UI 必须常驻展示，不能藏进 tooltip */
   note: string | null
 }
 
 export interface Observation {
   indicatorId: string
-  /** 规范期间：'2026-08' | '2026Q2' | '2026' */
+  /** 规范期间：'2026-08-31' | '2026-08' | '2026Q2' | '2026' */
   period: string
   /** 期间结束日 '2026-08-31'，用于排序与跨频率对齐 */
   periodEnd: string
@@ -78,6 +84,7 @@ export interface DataStatus {
   lastFetchAt: string | null
   indicatorCount: number
   observationCount: number
+  /** 跨频率的最新期末日期，按 period_end 而非期间字符串排序。 */
   latestPeriod: string | null
   sources: SourceHealth[]
 }
@@ -92,12 +99,19 @@ export type Result<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string } }
 
+export interface ExportRequest {
+  name: string
+  format: 'csv' | 'png'
+  content: string
+}
+
 /** preload 通过 contextBridge 暴露给渲染进程的白名单 API */
 export interface MacroApi {
   listIndicators(): Promise<Result<Indicator[]>>
   getSeries(req: { id: string; from?: string; to?: string }): Promise<Result<Observation[]>>
   getDataStatus(): Promise<Result<DataStatus>>
   refresh(): Promise<Result<RefreshResult>>
+  exportFile(req: ExportRequest): Promise<Result<{ path: string | null }>>
 }
 
 export const IPC = {
@@ -105,4 +119,5 @@ export const IPC = {
   getSeries: 'macro:get-series',
   getDataStatus: 'macro:get-data-status',
   refresh: 'macro:refresh',
+  exportFile: 'macro:export-file',
 } as const

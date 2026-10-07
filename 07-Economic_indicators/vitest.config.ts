@@ -10,7 +10,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'scripts/**/*.test.mjs'],
     // 联网用例以 LIVE=1 显式开启：默认跑的是离线解析测试，不碰网络
     testTimeout: 60_000,
   },

@@ -50,8 +50,7 @@ export function formatAxisTime(ms: number, frequency: Frequency): string {
     case 'quarter':
       return `${y}Q${Math.floor(d.getUTCMonth() / 3) + 1}`
     case 'day':
-      // 目前没有日频指标。真加了日频指标时，跨年的 MM-DD 会歧义，需要另做。
-      return `${m}-${String(d.getUTCDate()).padStart(2, '0')}`
+      return `${y}-${m}-${String(d.getUTCDate()).padStart(2, '0')}`
     default:
       return `${y}-${m}`
   }
@@ -196,7 +195,8 @@ export function buildLineOption(
         data,
         // 缺失期断开，不要把两侧连起来
         connectNulls: false,
-        showSymbol: true,
+        // 长日度序列保留折线，悬停时显示标记，避免数百个点盖住走势。
+        showSymbol: indicator.frequency !== 'day' || points.length <= 90,
         symbol: 'circle',
         symbolSize: 8, // §6.4：标记直径 ≥ 8px
         lineStyle: { width: 2, color: tokens.accent }, // §6.4：线宽 2px

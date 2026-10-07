@@ -16,6 +16,7 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   employment: '就业',
   external: '对外经济',
   fiscal: '财政',
+  society: '人口与社会',
 }
 
 /**

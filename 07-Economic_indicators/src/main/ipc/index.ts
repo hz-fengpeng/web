@@ -1,9 +1,11 @@
-import { ipcMain } from 'electron'
-import { IPC, type DataStatus, type Result } from '@shared/types'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { writeFile } from 'node:fs/promises'
+import { IPC, type DataStatus, type ExportRequest, type Result } from '@shared/types'
 import { INDICATORS } from '@shared/indicators'
 import type { Db } from '../db/adapter'
 import { MOCK_SOURCE } from '../db/bootstrap'
 import { counts, getMeta, getSeries, sourceHealth } from '../db/queries'
+import { exportPayload } from './export'
 
 /**
  * 主进程交给 IPC 层的数据库句柄。
@@ -29,6 +31,18 @@ const wrap = <T>(fn: () => T | Promise<T>): Promise<Result<T>> =>
     .catch((err: unknown) => fail('E_HANDLER', err instanceof Error ? err.message : String(err)))
 
 export function registerIpc(host: DbHost): void {
+  ipcMain.handle(IPC.exportFile, (event, req: ExportRequest) => wrap(async () => {
+    const { name, bytes } = exportPayload(req)
+    const owner = BrowserWindow.fromWebContents(event.sender)
+    if (!owner) throw new Error('导出窗口已关闭')
+    const result = await dialog.showSaveDialog(owner, {
+      title: '导出示例数据', defaultPath: name,
+      filters: [{ name: req.format.toUpperCase(), extensions: [req.format] }],
+    })
+    if (result.canceled || !result.filePath) return { path: null }
+    await writeFile(result.filePath, bytes)
+    return { path: result.filePath }
+  }))
   ipcMain.handle(IPC.listIndicators, () => wrap(() => INDICATORS))
 
   ipcMain.handle(IPC.getSeries, (_e, req: { id: string; from?: string; to?: string }) =>

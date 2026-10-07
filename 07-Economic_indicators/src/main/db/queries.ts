@@ -5,12 +5,9 @@ import { type Db } from './adapter'
 /**
  * 所有 SQL 集中在此，业务代码不散落 SQL 字符串。
  *
- * ★ 这里**只有读路径**。曾经还有写路径（`upsertObservations` / `logFetch`），
- *   随采集层在 M1c 删除后就再没有调用方了，之后一并清掉。现在往 `observation`
- *   表写数据的只有一件事：`bootstrap.ts` 把内置库文件整个复制过去（§3.2.0）。
- *
- *   将来重新接入真实数据源时，要新写的是「从网上取数并转成行」和「把行写进表」，
- *   后者的 SQL 届时按真实数据的形状定——不必把上面那两个函数找回来。
+ * 观测读取、计数与元数据操作集中在这里。目录升级只从内置静态库追加
+ * 新指标，已有系列不覆盖；写入由 catalog.ts 的事务管理。
+ * 本轮没有恢复网络采集或运行时数据生成。
  */
 
 export function getSeries(db: Db, indicatorId: string, from?: string, to?: string): Observation[] {
@@ -47,9 +44,38 @@ export function getSeries(db: Db, indicatorId: string, from?: string, to?: strin
 export function counts(db: Db): { observations: number; latestPeriod: string | null } {
   const c = db.prepare('SELECT COUNT(*) AS c FROM observation').get() as { c: number | bigint }
   const latest = db
-    .prepare('SELECT MAX(period) AS p FROM observation')
+    .prepare('SELECT MAX(period_end) AS p FROM observation')
     .get() as { p: string | null }
-  return { observations: Number(c.c), latestPeriod: latest.p }
+  return { observations: Number(c.c), latestPeriod: latest?.p ?? null }
+}
+
+/** 从静态内置库追加整个新指标；已有该指标的任何观测时，保留用户版本。 */
+export function appendBundledIndicators(db: Db, bundled: Db, ids: string[]): number {
+  const exists = db.prepare('SELECT 1 FROM observation WHERE indicator_id = ? LIMIT 1')
+  const read = bundled.prepare(`SELECT indicator_id, period, period_end, value, status, released_at, fetched_at, revision
+    FROM observation WHERE indicator_id = ?`)
+  const insert = db.prepare(`INSERT INTO observation
+    (indicator_id, period, period_end, value, status, released_at, fetched_at, revision)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+  let written = 0
+  for (const id of ids) {
+    if (exists.get(id)) continue
+    const rows = read.all(id)
+    if (rows.length === 0) throw new Error(`内置示例库缺少新增指标：${id}`)
+    for (const row of rows) {
+      insert.run(row.indicator_id, row.period, row.period_end, row.value, row.status, row.released_at, row.fetched_at, row.revision)
+      written++
+    }
+  }
+  return written
+}
+
+export function logCatalogUpgrade(db: Db, written: number, version: number): void {
+  const now = new Date().toISOString()
+  db.prepare(`INSERT INTO fetch_log(source_id, started_at, finished_at, status, rows_written, message)
+    VALUES ('mock', ?, ?, 'ok', ?, ?)`)
+    .run(now, now, written, `内置示例目录升级 v${version} · 追加 ${written} 条合成观测，非真实统计；已有指标保留`)
+  setMeta(db, 'last_fetch_at', now)
 }
 
 /** 各数据源的最近一次采集结果，驱动数据管理页的健康度展示 */

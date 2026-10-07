@@ -4,9 +4,9 @@ macOS 桌面应用，把**按官方统计口径定义**的宏观经济指标集�
 Electron + React + TypeScript，本地 SQLite。
 
 > ⚠️ **库里的数值是合成的演示数据，不是真实统计。** 界面顶部有一条常驻、不可关闭的横幅说明
-> 这一点。各指标的「口径说明」记的是**真实统计口径**，仅用于指导界面呈现。
+> 这一点。统计指标说明相应统计范围，示例计算指标单独注明公式和演示权重。
 > 应用**完全不联网**，也不生成任何数据——它只把随应用发布的 `resources/macro.db`
-> 复制到用户目录后读取（[§3.2.0](docs/02-数据层.md)）。
+> 首次复制到用户目录，旧目录自动追加新指标后读取（[§3.2.0](docs/02-数据层.md)）。
 
 **完整设计与决策记录见 [docs/](docs/README.md)**（按主题分 6 篇，`§X.Y` 是稳定编号）。
 
@@ -16,29 +16,34 @@ Electron + React + TypeScript，本地 SQLite。
 
 ```bash
 npm install
-npm run dev          # 开发模式（HMR）
+npm run dev          # 自动检查 Electron 安装后进入开发模式（HMR）
+npm run setup:electron # 单独检查/补装 Electron 可执行文件
 npm run build        # 类型检查 + 构建
 npm run dist:mac     # 打包成未签名的本地 .app（约 289MB）
 ```
 
-> ⚠️ **如果在 VS Code 的集成终端里启动，请用 `env -u ELECTRON_RUN_AS_NODE npm run dev`。**
->
-> VS Code 会给集成终端注入 `ELECTRON_RUN_AS_NODE=1`，该变量让 Electron 二进制退化成普通
-> Node。症状是启动即报 `does not provide an export named 'app'`，且
-> `electron --version` 打印的是 Node 版本号而不是 Electron 版本号——极易误诊为构建问题。
-> 用系统终端启动也可以避免。
+`npm run dev` 自动检查 Electron 的可执行文件与版本，缺失时调用官方安装器补装，
+完整安装不会再次下载；安装中断只丢失 `path.txt` 时会直接恢复该文件。
+启动子进程前会清除 `ELECTRON_RUN_AS_NODE`，可直接从 VS Code 集成终端运行。
+
+若下载需要本机代理，先执行（当前机器提供的代理端口为 7897）：
+
+```bash
+HTTPS_PROXY=http://127.0.0.1:7897 npm run setup:electron
+npm run dev
+```
+
+补装使用 Electron 安装器的文件校验；下载代理只用于补装，应用数据仍完全离线。
 
 ## 测试
 
 ```bash
-npm test             # 42 例，全部离线
+npm test             # 79 例，全部离线
 npm run typecheck    # tsc --noEmit，node/web 两个 project 各跑一遍
 ```
 
-测试与源码同目录（`src/main/db/migrate.test.ts`、`src/main/db/bootstrap.test.ts`、
-`src/renderer/src/charts/lineOption.test.ts`）。
-没有 E2E、没有联网用例、也没有 CI——本机的 `npm test` 就是全部的自动化关口
-（[§10.3](docs/05-工程化与交付.md)）。
+测试与源码同目录，覆盖数据库迁移与恢复、折线/对比图、浏览数据语义、CSV 与导出 IPC 边界。
+没有持久化 E2E 或 CI 配置，本机 `npm test` 与 `npm run build` 是自动化关口。
 
 ## 数据与合规
 
@@ -48,8 +53,31 @@ npm run typecheck    # tsc --noEmit，node/web 两个 project 各跑一遍
 
 ## 当前进度
 
-**M0 → M2a 已完成**：骨架与技术验证、迁移机制、数据固化为内置库、详情页折线图。
-指标定义在 [`src/shared/indicators.ts`](src/shared/indicators.ts)——**10 个指标**，
-那是指标元数据的唯一事实源。
+M0–M2a 的数据层与折线图基础上，已补齐以下功能（数据仍为内置的 **109 个指标 / 10,465 条合成观测**）：
 
-下一步是 M2b（设计系统 + 概览页）。里程碑与风险见 [docs/06-里程碑与决策.md](docs/06-里程碑与决策.md)。
+- **经济概览**：12 个核心 KPI、关注视图、GDP / CPI / PMI / 社零 / M2 / 社融 6 张趋势图，均可切换到数据表。
+- **指标库与详情**：分类、P0/P1/P2 筛选、搜索、排序、关注、快捷/自定义时间窗、工业增加值同比/环比切换、分页数据表、历史修订。
+- **对比分析**：最多 3 个指标，同口径、单位、频率和季调状态守卫；共用单轴与对齐数据表。
+- **发布日历**：按示例库发布日浏览、按分类/日期筛选、查看修订发布事件，不推测未来安排。
+- **导出与数据管理**：当前时间窗 CSV / PNG、全部观测 CSV（含历史修订）、数据覆盖情况、带确认的重置。
+- **设置与恢复体验**：系统/浅色/深色主题、默认时间窗、关注与偏好本地保存，错误重试、空状态、焦点样式与渲染错误兜底。
+
+CSV 带 UTF-8 BOM、口径、单位、状态、修订号与示例声明；PNG 带标题、口径说明与示例声明。
+导出通过原生保存对话框选择位置，取消不写入文件。
+
+本轮已通过 `npm test`（79 例）和 `npm run build`，并用内置库数据验证了浏览器中的页面交互与导出内容。
+**Electron 44.4.5 已通过代理下载并校验，`npm run dev` 和桌面窗口已实机验证，显示 109 个指标、10,465 条观测。** 原生保存对话框与 `.app` 打包仍待验收。
+M5 的性能/完整无障碍验收及 M6 的打包仍待完成；详情见 [里程碑](docs/06-里程碑与决策.md)。
+
+## 指标数据扩充
+
+当前 P0 / P1 / P2 分别为 **23 / 38 / 48** 个指标，覆盖 9 个主题、4 种频率。
+包含 31 个省级 GDP 累计同比、5 个贸易伙伴的进出口、5 类社零分项，以及人口、城镇化率、基尼系数、
+国际收支主要账户与分项、外债、收益率节点和示例计算指标。
+完整清单见 [指标目录](docs/07-指标目录与示例数据.md)。
+
+旧用户库启动时按 `mock_catalog_version` 追加尚未存在的新指标，保留原有观测、修订及用户改值。
+无需手动重置；升级在单个事务中执行，失败会回滚，重复启动不重复插入。
+
+开发时可执行 `node scripts/extend-mock-data.mjs` 扩充内置产物并重新生成目录文档。
+脚本不参与应用启动或构建，只追加本轮新增指标；原有 10 个指标仍依赖提交的原始数据文件，无法从此脚本重建。

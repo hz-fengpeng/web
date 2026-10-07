@@ -5,15 +5,23 @@
  * 跨频率对齐的真实日期。两者分离，才能让月度、季度、年度指标在同一根时间轴上对齐。
  */
 
-export type PeriodKind = 'month' | 'quarter' | 'year'
+export type PeriodKind = 'day' | 'month' | 'quarter' | 'year'
 
 const MONTH_RE = /^(\d{4})-(\d{2})$/
 const QUARTER_RE = /^(\d{4})Q([1-4])$/
 const YEAR_RE = /^(\d{4})$/
+const DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 
 export function parsePeriod(period: string): { kind: PeriodKind; year: number; index: number } | null {
-  let m = MONTH_RE.exec(period)
-  if (m) return { kind: 'month', year: Number(m[1]), index: Number(m[2]) }
+  let m = DAY_RE.exec(period)
+  if (m) {
+    const date = new Date(`${period}T00:00:00Z`)
+    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== period) return null
+    return { kind: 'day', year: Number(m[1]), index: Number(m[3]) }
+  }
+  m = MONTH_RE.exec(period)
+  if (m) return Number(m[2]) >= 1 && Number(m[2]) <= 12
+    ? { kind: 'month', year: Number(m[1]), index: Number(m[2]) } : null
   m = QUARTER_RE.exec(period)
   if (m) return { kind: 'quarter', year: Number(m[1]), index: Number(m[2]) }
   m = YEAR_RE.exec(period)
@@ -25,6 +33,7 @@ export function parsePeriod(period: string): { kind: PeriodKind; year: number; i
 export function periodEnd(period: string): string {
   const p = parsePeriod(period)
   if (!p) throw new Error(`无法解析期间: ${period}`)
+  if (p.kind === 'day') return period
 
   if (p.kind === 'month') {
     // 第 0 天 = 上个月的最后一天

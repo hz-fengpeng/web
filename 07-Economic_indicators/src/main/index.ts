@@ -16,6 +16,7 @@ import { close, exec, openDatabase, type Db } from './db/adapter'
 import { BUNDLED_DB, ensureUserDb, resetToBundled } from './db/bootstrap'
 import { migrate, SCHEMA_VERSION } from './db/migrate'
 import { counts } from './db/queries'
+import { upgradeMockCatalog } from './db/catalog'
 import { registerIpc } from './ipc'
 
 // node:sqlite 目前仍标记为实验性，首次使用时 Node 会打印 ExperimentalWarning。
@@ -94,7 +95,12 @@ function initDatabase(): Db {
       ? `[db] 首次运行：内置示例数据已复制到 ${userFile}`
       : `[db] 使用已有数据库 ${userFile}（未覆盖）`,
   )
-  return openAndMigrate(userFile)
+  const handle = openAndMigrate(userFile)
+  try {
+    const written = upgradeMockCatalog(handle, bundledFile)
+    if (written) console.log(`[db] 已追加 ${written} 条新指标示例观测，原有记录保留`)
+    return handle
+  } catch (error) { close(handle); throw error }
 }
 
 /**

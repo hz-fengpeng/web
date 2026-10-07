@@ -17,12 +17,13 @@ export type Row = Record<string, unknown>
 export interface OpenOptions {
   /** 为 true 时使用内存库，供测试使用 */
   memory?: boolean
+  readOnly?: boolean
 }
 
 export function openDatabase(file: string, opts: OpenOptions = {}): Db {
-  const db = new DatabaseSync(opts.memory ? ':memory:' : file)
+  const db = new DatabaseSync(opts.memory ? ':memory:' : file, { readOnly: opts.readOnly ?? false })
   // WAL 提升并发读写表现；内存库不支持 WAL，跳过
-  if (!opts.memory) db.exec('PRAGMA journal_mode = WAL;')
+  if (!opts.memory && !opts.readOnly) db.exec('PRAGMA journal_mode = WAL;')
   db.exec('PRAGMA foreign_keys = ON;')
   return db
 }

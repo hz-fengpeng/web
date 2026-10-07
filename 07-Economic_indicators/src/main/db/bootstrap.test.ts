@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { INDICATORS } from '@shared/indicators'
+import { periodEnd } from '@shared/period'
 import type { ObsStatus } from '@shared/types'
 import { close, exec, openDatabase } from './adapter'
 import { BUNDLED_DB, MOCK_SOURCE, ensureUserDb, resetToBundled, restoreUserDb } from './bootstrap'
@@ -267,19 +268,30 @@ describe('resources/macro.db · 经查询层读（UI 实际走的那条路）', 
   it('期间字符串与指标频率一致', () => {
     const db = openShippedCopy()
     for (const ind of INDICATORS) {
-      const re = ind.frequency === 'quarter' ? /^\d{4}Q[1-4]$/ : /^\d{4}-\d{2}$/
+      const re = {
+        day: /^\d{4}-\d{2}-\d{2}$/, month: /^\d{4}-\d{2}$/, quarter: /^\d{4}Q[1-4]$/, year: /^\d{4}$/,
+      }[ind.frequency]
       for (const r of getSeries(db, ind.id)) {
         expect(r.period, `${ind.id} 的期间格式不对`).toMatch(re)
+        expect(r.periodEnd).toBe(periodEnd(r.period))
       }
     }
     close(db)
   })
 
-  it('★ 发布日不早于期末', () => {
+  it('★ 发布日符合期间语义：LPR 为当月报价，其余不早于期末', () => {
     const db = openShippedCopy()
     for (const ind of INDICATORS) {
       for (const r of getSeries(db, ind.id)) {
         if (!r.releasedAt) continue
+        if (ind.id.startsWith('cn.lpr.')) {
+          // 报价在当月 20 日公布，月末只是对齐日期；不能把报价伪造为次月发布。
+          expect(r.releasedAt.slice(0, 7)).toBe(r.period)
+          expect(Number(r.releasedAt.slice(8))).toBeGreaterThanOrEqual(20)
+          expect(Number(r.releasedAt.slice(8))).toBeLessThanOrEqual(22)
+          expect([0, 6]).not.toContain(new Date(`${r.releasedAt}T00:00:00Z`).getUTCDay())
+          continue
+        }
         expect(
           Date.parse(r.releasedAt),
           `${ind.id} ${r.period} 的发布日 ${r.releasedAt} 早于期末 ${r.periodEnd}`,
@@ -294,7 +306,7 @@ describe('resources/macro.db · 经查询层读（UI 实际走的那条路）', 
     const raw = (db.prepare('SELECT COUNT(*) AS c FROM observation').get() as { c: number }).c
     const c = counts(db)
     expect(c.observations).toBe(raw)
-    expect(c.latestPeriod).toMatch(/^\d{4}(-\d{2}|Q[1-4])$/)
+    expect(c.latestPeriod).toMatch(/^\d{4}(-\d{2}(-\d{2})?|Q[1-4])$/)
 
     // 页脚「最近采集」直接印它，为空会显示成「—」
     expect(getMeta(db, 'last_fetch_at')).toBeTruthy()

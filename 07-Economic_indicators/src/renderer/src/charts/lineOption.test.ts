@@ -121,6 +121,16 @@ describe('buildLineOption · x 轴按真实时间定位', () => {
   })
 })
 
+describe('日度长序列', () => {
+  it('跨周末保持真实时间差，长序列不密集画点，短序列仍有点形', () => {
+    const daily = ind({ frequency: 'day' })
+    const short = buildLineOption(daily, [obs('2026-08-28', 7.1), obs('2026-08-31', 7.2)], T)
+    expect(dataOf(short)[1].value[0] - dataOf(short)[0].value[0]).toBe(3 * 86400e3)
+    expect(seriesOf(short).showSymbol).toBe(true)
+    expect(seriesOf(buildLineOption(daily, Array.from({ length: 100 }, () => obs('2026-08-28', 7.1)), T)).showSymbol).toBe(false)
+  })
+})
+
 describe('buildLineOption · 缺失期', () => {
   it('★ null 原样保留在 data 里，不被过滤——过滤掉就等于把缺口补平了', () => {
     const rows = [obs('2026-01', 1), obs('2026-02', null, 'missing'), obs('2026-03', 3)]
@@ -251,6 +261,7 @@ describe('formatAxisTime · 标签格式', () => {
     expect(formatAxisTime(ms, 'month')).toBe('2026-06')
     expect(formatAxisTime(ms, 'quarter')).toBe('2026Q2')
     expect(formatAxisTime(ms, 'year')).toBe('2026')
+    expect(formatAxisTime(ms, 'day')).toBe('2026-06-30')
   })
 
   it('季度边界月份映射正确', () => {
