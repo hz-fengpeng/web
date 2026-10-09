@@ -36,14 +36,14 @@ export function Overview({ indicators, series, favorites, onOpen }: {
       const indicator = indicators.find((i) => i.id === id)
       return indicator && <TrendCard key={id} indicator={indicator} rows={filterRange(current[id], rangeStart(current[id].at(-1)?.periodEnd ?? '', '3y'), '')} onOpen={() => onOpen(id)} />
     })}</div>
-    <div className="note mt-6"><Badge>内置示例库</Badge><span>{indicators.length} 个指标覆盖 {new Set(indicators.map((i) => i.category)).size} 类主题，包含 P0 / P1 / P2、31 个省级地区，以及日度、月度、季度、年度序列。所有数值均为合成示例。</span></div>
+    <div className="note mt-6"><Badge>真实统计数据</Badge><span>目录里登记了 {indicators.length} 个指标，覆盖 {new Set(indicators.map((i) => i.category)).size} 类主题、P0 / P1 / P2 三个层级与日度、月度、季度、年度四种频率。本轮只接入了 P0 中的 18 个指标，其余指标尚无免费数据源，显示为「暂无数据」；5 个 P0 指标上游未发布或渠道取不到，如实留空。</span></div>
   </>
 }
 function TrendCard({ indicator, rows, onOpen }: { indicator: Indicator; rows: SeriesMap[string]; onOpen: () => void }): JSX.Element {
   const [view, setView] = useState<'chart' | 'table'>('chart')
   return <section className="panel trend-card"><div className="panel-heading"><button className="text-link" onClick={onOpen}>{indicator.nameShort} ↗</button><ViewToggle view={view} onChange={setView} /></div>
     <IndicatorMeta indicator={indicator} />
-    {rows.length === 0 ? <Empty>暂无观测数据</Empty> : view === 'chart' ? <LineChart indicator={indicator} rows={rows} height={220} /> : <ObservationTable indicator={indicator} rows={rows} />}
+    {rows.every((r) => r.value === null) ? <Empty>暂无观测数据</Empty> : view === 'chart' ? <LineChart indicator={indicator} rows={rows} height={220} /> : <ObservationTable indicator={indicator} rows={rows} />}
     <p className="chart-note">{indicator.note}</p>
   </section>
 }

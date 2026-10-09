@@ -37,7 +37,7 @@ export function Compare({ indicators, series, selectedIds, onSelection, defaultR
         `${periods.at(-1)} 至 ${periods[0]} · ${VALUE_LABEL[anchor.valueType]} · 单位：${anchor.unit}`,
         ...selected.map((i, index) => `${['实线圆点', '虚线方点', '点线三角'][index]} · ${i.nameShort}：${i.note ?? ''}`), '缺失值不插值；菱形为 1—2 月合并发布。',
       ])
-      const path = await saveExport('指标对比-示例数据', format, content)
+      const path = await saveExport('指标对比-真实数据', format, content)
       if (path) notify(`已导出：${path}`)
     } catch (error) { onError(error) } finally { setExporting(false) }
   }

@@ -5,10 +5,18 @@ import { GridComponent, TooltipComponent, MarkLineComponent } from 'echarts/comp
 import { CanvasRenderer } from 'echarts/renderers'
 import type { LineChartOption } from './lineOption'
 import { readTokens } from './theme'
-import { DEMO_LABEL } from '../lib/data'
+import { provenanceLine } from '@shared/provenance'
 
 use([LineChartSeries, GridComponent, TooltipComponent, MarkLineComponent, CanvasRenderer])
-export interface ChartHandle { png(title: string, notes: string[]): Promise<string> }
+export interface ChartHandle {
+  /**
+   * 把图连同页眉、脚注一起导出成 PNG。
+   *
+   * 出处声明不由调用方传入：图会被另存、转发，脱离界面之后它就是这份图唯一的口径
+   * 标记，所以钉在导出的一侧，调用方无从改动、也无从忘记。
+   */
+  png(title: string, notes: string[]): Promise<string>
+}
 
 export function ChartCanvas({ option, label, height = 320, ref }: {
   option: LineChartOption; label: string; height?: number; ref?: Ref<ChartHandle>
@@ -61,7 +69,7 @@ export function ChartCanvas({ option, label, height = 320, ref }: {
       context.font = `bold 32px ${tokens.sans}`
       context.fillText(title, 32, 48, canvas.width - 64)
       context.font = font
-      context.fillText(DEMO_LABEL + ' · 请勿作为真实经济数据引用', 32, 88, canvas.width - 64)
+      context.fillText(provenanceLine(), 32, 88, canvas.width - 64)
       context.drawImage(picture, 0, 112)
       context.fillStyle = tokens.textSec
       context.font = font

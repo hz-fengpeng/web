@@ -13,10 +13,9 @@ import { app, BrowserWindow, session, shell } from 'electron'
 import { join } from 'node:path'
 import schemaSql from './db/schema.sql?raw'
 import { close, exec, openDatabase, type Db } from './db/adapter'
-import { BUNDLED_DB, ensureUserDb, resetToBundled } from './db/bootstrap'
+import { BUNDLED_DB, resetToBundled, restoreUserDb } from './db/bootstrap'
 import { migrate, SCHEMA_VERSION } from './db/migrate'
 import { counts } from './db/queries'
-import { upgradeMockCatalog } from './db/catalog'
 import { registerIpc } from './ipc'
 
 // node:sqlite 目前仍标记为实验性，首次使用时 Node 会打印 ExperimentalWarning。
@@ -85,26 +84,21 @@ function openAndMigrate(file: string): Db {
 /**
  * **不生成数据，只摆放文件。** 数据全部来自 `resources/macro.db`——
  * 一个随项目提交的、已经装好观测的 SQLite 文件（见 db/bootstrap.ts）。
- * 首次运行把它复制到 userData，之后一直读写 userData 那份。
+ * **每次启动都把它覆盖到 userData**，所以应用手上的库永远是随包发布的那一份
+ * 的副本；界面上写的来历与库里的内容因此不可能对不上。
+ *
+ * 覆盖不丢东西：应用从不写 `observation`（唯一的写入者是那段补合成观测的
+ * 目录升级，已删除），`migrate()` 只写 `schema_version`。
  */
 function initDatabase(): Db {
   const { userFile, bundledFile } = dbPaths()
-  const action = ensureUserDb(userFile, bundledFile)
-  console.log(
-    action === 'copied'
-      ? `[db] 首次运行：内置示例数据已复制到 ${userFile}`
-      : `[db] 使用已有数据库 ${userFile}（未覆盖）`,
-  )
-  const handle = openAndMigrate(userFile)
-  try {
-    const written = upgradeMockCatalog(handle, bundledFile)
-    if (written) console.log(`[db] 已追加 ${written} 条新指标示例观测，原有记录保留`)
-    return handle
-  } catch (error) { close(handle); throw error }
+  restoreUserDb(userFile, bundledFile)
+  console.log(`[db] 内置数据库已覆盖到 ${userFile}`)
+  return openAndMigrate(userFile)
 }
 
 /**
- * 「重置示例数据」：用内置文件覆盖 userData 那份。
+ * 「重置数据」：用内置文件覆盖 userData 那份。
  *
  * `resetToBundled` 内部会先关连接——那一步不能省，省掉的话重置会**静默失效**
  * （不报错，但一行都没换），原因见 db/bootstrap.ts 的注释。

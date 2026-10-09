@@ -51,7 +51,13 @@ export interface Indicator {
   /** 未标注的初始指标属于 P0。 */
   tier?: 'P0' | 'P1' | 'P2'
   region?: string
-  /** 由示例观测计算，必须在界面与导出中标明。 */
+  /**
+   * 由其他序列计算得到，而非上游直接发布。
+   *
+   * 界面与导出都必须标明。**措辞不能写死成「示例计算值」**：真实库里
+   * 派生指标的输入是官方序列，算出来的也是真实统计，写「示例」就是错的。
+   * 按库的性质分档的措辞见 `lib/export.ts` 的 `originOf`。
+   */
   isDerived?: boolean
   /** ★ 口径说明。UI 必须常驻展示，不能藏进 tooltip */
   note: string | null

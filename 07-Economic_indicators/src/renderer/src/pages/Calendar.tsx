@@ -17,7 +17,7 @@ export function Calendar({ indicators, series, onOpen }: { indicators: Indicator
   const offset = (new Date(Date.UTC(year, m - 1, 1)).getUTCDay() + 6) % 7
   const changeMonth = (next: string): void => { if (/^\d{4}-\d{2}$/.test(next)) { setMonth(next); setSelectedDay(null) } }
   return <>
-    <PageHeading title="发布日历" description="查看内置示例库中的发布记录；日期为演示日期，不代表官方发布安排。"><Badge>{monthEvents.length} 条发布记录</Badge></PageHeading>
+    <PageHeading title="发布日历" description="查看库中的发布记录；发布日由抓取器按各指标的惯例发布节奏推算，不是官方发布时刻。"><Badge>{monthEvents.length} 条发布记录</Badge></PageHeading>
     <div className="toolbar"><div className="actions"><button className="btn" aria-label="上个月" onClick={() => changeMonth(shiftMonth(month, -1))}>←</button>
       <input type="month" aria-label="发布月份" value={month} onChange={(e) => changeMonth(e.target.value)} />
       <button className="btn" aria-label="下个月" onClick={() => changeMonth(shiftMonth(month, 1))}>→</button><button className="btn" onClick={() => changeMonth(latestMonth)}>最近有记录的月份</button></div>
@@ -29,13 +29,13 @@ export function Calendar({ indicators, series, onOpen }: { indicators: Indicator
         {Array.from({ length: count }, (_, index) => {
           const day = `${month}-${String(index + 1).padStart(2, '0')}`
           const list = monthEvents.filter((e) => e.row.releasedAt === day)
-          return <button className="calendar-day" key={day} aria-pressed={selectedDay === day} aria-label={`${day}，${list.length} 条示例发布记录`} onClick={() => setSelectedDay(selectedDay === day ? null : day)}>
+          return <button className="calendar-day" key={day} aria-pressed={selectedDay === day} aria-label={`${day}，${list.length} 条发布记录`} onClick={() => setSelectedDay(selectedDay === day ? null : day)}>
             <span className="calendar-date tnum">{index + 1}</span>{list.slice(0, 2).map((e) => <span className="calendar-event" key={`${e.indicator.id}-${e.row.period}-${e.row.revision}`}>{e.indicator.nameShort}</span>)}
             {list.length > 2 && <small className="text-ink-muted">另有 {list.length - 2} 条</small>}
           </button>
         })}</div></section>
     <div className="section-caption mt-6"><span>{selectedDay ?? month} · 发布记录</span>{selectedDay && <button className="text-link" onClick={() => setSelectedDay(null)}>查看整月</button>}</div>
-    {visible.length === 0 ? <Empty>这段时间没有示例发布记录。可切换到最近有记录的月份。</Empty> : <div className="panel table-scroll"><table><thead><tr><th>示例发布日</th><th>指标</th><th>观测期间</th><th>数值</th><th>状态</th></tr></thead><tbody>
+    {visible.length === 0 ? <Empty>这段时间没有发布记录。可切换到最近有记录的月份。</Empty> : <div className="panel table-scroll"><table><thead><tr><th>发布日（推算）</th><th>指标</th><th>观测期间</th><th>数值</th><th>状态</th></tr></thead><tbody>
       {visible.map(({ indicator, row }) => <tr key={`${indicator.id}-${row.period}-${row.revision}`}><td className="tnum">{row.releasedAt}</td><td><button className="text-link" onClick={() => onOpen(indicator.id)}>{indicator.nameShort}</button></td><td>{row.period}</td><td className="tnum">{formatValue(row.value, indicator.decimals)} {indicator.unit}</td><td><Badge>{STATUS_ZH[row.status]}</Badge></td></tr>)}
     </tbody></table></div>}
   </>

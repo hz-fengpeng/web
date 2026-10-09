@@ -13,7 +13,7 @@ export function Badge({ children }: { children: ReactNode }): JSX.Element {
   return <span className="badge">{children}</span>
 }
 export function IndicatorMeta({ indicator: i }: { indicator: Indicator }): JSX.Element {
-  return <div className="actions"><Badge>{i.tier ?? 'P0'}</Badge><Badge>{VALUE_LABEL[i.valueType]}</Badge><Badge>{FREQUENCY_LABEL[i.frequency]}</Badge>{i.seasonalAdj && <Badge>季节调整</Badge>}{i.isDerived && <Badge>示例计算值</Badge>}{i.region && <Badge>{i.region}</Badge>}</div>
+  return <div className="actions"><Badge>{i.tier ?? 'P0'}</Badge><Badge>{VALUE_LABEL[i.valueType]}</Badge><Badge>{FREQUENCY_LABEL[i.frequency]}</Badge>{i.seasonalAdj && <Badge>季节调整</Badge>}{i.isDerived && <Badge>计算所得</Badge>}{i.region && <Badge>{i.region}</Badge>}</div>
 }
 export function Delta({ value, unit = '', decimals = 1 }: { value: number | null; unit?: string; decimals?: number }): JSX.Element {
   if (value === null) return <span className="text-ink-muted">—</span>

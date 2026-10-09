@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { INDICATORS } from '@shared/indicators'
 import { periodEnd } from '@shared/period'
 import type { ObsStatus } from '@shared/types'
-import { close, exec, openDatabase } from './adapter'
-import { BUNDLED_DB, MOCK_SOURCE, ensureUserDb, resetToBundled, restoreUserDb } from './bootstrap'
+import { close, exec, openDatabase, type Db } from './adapter'
+import { BUNDLED_DB, REAL_SOURCES, resetToBundled, restoreUserDb } from './bootstrap'
 import { SCHEMA_VERSION, migrate } from './migrate'
 import { counts, getMeta, getSeries, sourceHealth } from './queries'
 import schemaSql from './schema.sql?raw'
@@ -15,14 +15,41 @@ import schemaSql from './schema.sql?raw'
  * 内置数据库的摆放逻辑。
  *
  * 这里守两件事：
- *  1. **复制语义**——只在首次运行放文件，绝不覆盖用户那份。判错了会让
- *     用户每次启动都回到出厂状态，或者反过来：库坏了也修不回来。
- *  2. **随项目提交的那份文件本身**。生成器已删除（见开发文档 §3.2.0），
- *     `resources/macro.db` 成为一个不可再生的产物——它必须是能打开的、
- *     满的、结构正确的库。它坏了没有任何东西会重建它，只能靠这些断言发现。
+ *  1. **覆盖语义**——每次启动都用内置文件盖掉 userData 里那份。应用从不写
+ *     `observation`（运行期唯一的写入是 `migrate()` 记的 `schema_version`），
+ *     所以那份库只是内置库的运行期副本，覆盖不丢任何东西；换来的是
+ *     「界面手上的库就是随包发布的那一份」这条**结构性**保证。
+ *  2. **随项目提交的那份文件本身**。`resources/macro.db` 装的是
+ *     **真实统计数据**，由 `fetcher/`（Python，akshare）离线抓取后落盘。
+ *
+ * 第 2 条的重点是「**真不真**」：整个应用会对着这个文件声明「真实统计数据」，
+ * 横幅、图表署名、CSV 出处列都以此为据。所以下面查的不是「数据够不够多」，
+ * 而是有没有混进第二条来路的数据——合成值残留、假的修订记录、来源不明的
+ * 指标 id，都在这一层拦下。
  */
 
 const SHIPPED = resolve('resources', BUNDLED_DB)
+
+/**
+ * 「这个指标的观测是真抓来的」的判据。
+ *
+ * 取自 `fetch_log` 里带指标 id 的明细行——抓取器每跑一个指标就写一条，
+ * 记着它来自哪个源。**故意不另抄一份 id 清单**：清单是声明，而 fetch_log
+ * 是抓取器实际做过的事的流水；两者对不上，正是要在这里抓出来的东西。
+ *
+ * 这条判据挡不住「抓取器既写了行又顺手写了日志」这种自洽的错，但那种错
+ * 得先在 `mapping.py` 里编一条规则才可能发生，而规则表本身有 Python 侧的
+ * 测试盯着（`fetcher/tests/test_mapping.py`）。
+ */
+function sourcedIds(db: Db): Set<string> {
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT indicator_id FROM fetch_log
+        WHERE indicator_id IS NOT NULL AND source_id IN ('eastmoney', 'nbs', 'safe')`,
+    )
+    .all() as Array<{ indicator_id: string }>
+  return new Set(rows.map((r) => r.indicator_id))
+}
 
 let dir: string
 
@@ -45,22 +72,22 @@ function fakeBundled(content = 'BUNDLED-CONTENT'): string {
 
 describe('bootstrap · 摆放', () => {
   it('首次运行：内置文件被复制到用户目录', () => {
-    const bundled = fakeBundled()
-    expect(ensureUserDb(userFile(), bundled)).toBe('copied')
+    restoreUserDb(userFile(), fakeBundled())
     expect(readFileSync(userFile(), 'utf8')).toBe('BUNDLED-CONTENT')
   })
 
-  it('★ 用户目录已有库时不覆盖', () => {
-    const bundled = fakeBundled()
+  it('★ 每次启动都覆盖：用户改过的那份被换回内置库', () => {
     writeFileSync(userFile(), 'USER-EDITED')
-    expect(ensureUserDb(userFile(), bundled)).toBe('kept')
-    // 覆盖掉的话，用户改过的库、以及已经迁移过的库，每次启动都会被冲掉
-    expect(readFileSync(userFile(), 'utf8')).toBe('USER-EDITED')
+    restoreUserDb(userFile(), fakeBundled())
+    // 覆盖掉用户改过的那份，在别的应用里是数据丢失，在这里不是：应用从不写
+    // `observation`，那份文件只是内置库的运行期副本。代价只在「用 sqlite3
+    // 手工改过它」时出现，而那有「重置数据」按钮、也有下一次启动。
+    expect(readFileSync(userFile(), 'utf8')).toBe('BUNDLED-CONTENT')
   })
 
   it('用户目录不存在时会被建出来', () => {
     const nested = join(dir, 'a', 'b', 'macro.db')
-    expect(ensureUserDb(nested, fakeBundled())).toBe('copied')
+    restoreUserDb(nested, fakeBundled())
     expect(existsSync(nested)).toBe(true)
   })
 
@@ -68,11 +95,11 @@ describe('bootstrap · 摆放', () => {
     const missing = join(dir, 'nope.db')
     // 打包漏配 extraResources 时就是这个症状。报错里没有路径的话，
     // 只能看到一个光秃秃的 ENOENT（甚至更糟：一个空库被建出来）。
-    expect(() => ensureUserDb(userFile(), missing)).toThrow(/nope\.db/)
+    expect(() => restoreUserDb(userFile(), missing)).toThrow(/nope\.db/)
     expect(existsSync(userFile())).toBe(false)
   })
 
-  it('★ restore 覆盖用户那份，并清掉 WAL 残留', () => {
+  it('★ 覆盖时清掉 WAL 残留', () => {
     const bundled = fakeBundled('FRESH')
     writeFileSync(userFile(), 'USER-EDITED')
     writeFileSync(`${userFile()}-wal`, 'stale')
@@ -86,9 +113,11 @@ describe('bootstrap · 摆放', () => {
     expect(existsSync(`${userFile()}-shm`)).toBe(false)
   })
 
-  it('内置文件缺失时 restore 同样抛错（不静默留个空库）', () => {
+  it('★ 内置文件缺失时，用户那份原样留着（不静默清空）', () => {
     writeFileSync(userFile(), 'USER-EDITED')
     expect(() => restoreUserDb(userFile(), join(dir, 'nope.db'))).toThrow(/nope\.db/)
+    // 清 WAL 在前、复制在后：抛错时主库文件还没被碰过，不是「先截断再发现没源」。
+    expect(readFileSync(userFile(), 'utf8')).toBe('USER-EDITED')
   })
 
   /** 造一个「被改坏了」的用户库：多一条脏数据、少一整个指标。返回脏值行数。 */
@@ -173,27 +202,52 @@ describe('resources/macro.db · 随项目提交的那份文件', () => {
     expect(head, '内置数据库不是 SQLite 文件').toBe('SQLite format 3\u0000')
   })
 
-  it('★ 每个指标都有观测，且没有 INDICATORS 之外的指标 id', () => {
+  it('★ 没有 INDICATORS 之外的指标 id', () => {
     const db = openShippedCopy()
     const ids = (
-      db.prepare('SELECT indicator_id, COUNT(*) AS c FROM observation GROUP BY indicator_id').all() as Array<{
+      db.prepare('SELECT DISTINCT indicator_id FROM observation').all() as Array<{
         indicator_id: string
-        c: number
       }>
-    ).reduce<Record<string, number>>((m, r) => ({ ...m, [r.indicator_id]: r.c }), {})
+    ).map((r) => r.indicator_id)
 
-    for (const ind of INDICATORS) {
-      // 界面按指标逐个查序列。缺一个就是点进去一片空白，且没有任何报错。
-      expect(ids[ind.id] ?? 0, `${ind.id} 在内置库里没有数据`).toBeGreaterThan(0)
-    }
     const known = new Set(INDICATORS.map((i) => i.id))
-    for (const id of Object.keys(ids)) {
+    for (const id of ids) {
       expect(known.has(id), `内置库里出现了未登记的指标 ${id}`).toBe(true)
     }
     close(db)
   })
 
-  it('★ 五种 status 都有样本', () => {
+  it('★ 有观测的指标全部来自已接入的取数规则', () => {
+    // 「库里每一条观测都必须是真实的」——这是整个改造的立身之本，
+    // 也是应用敢对整库声明「真实统计数据」的唯一理由（开发文档 §14.4）。
+    //
+    // 实测踩过一次：第一版改造只清了 18 个已接入指标的合成基线，P1/P2 那
+    // 7911 行原样留着（和改造前的库逐字节相同）。结果是界面、图表、CSV
+    // 一起对着 76% 的合成数据说「真实统计数据」。抓取器现在每次运行都会
+    // 清掉没人认领的指标（`_plan_unclaimed`），这条断言就是那个不变量的看门人。
+    const db = openShippedCopy()
+    const ids = (
+      db.prepare('SELECT DISTINCT indicator_id FROM observation').all() as Array<{
+        indicator_id: string
+      }>
+    ).map((r) => r.indicator_id)
+    expect(ids.length).toBeGreaterThan(0)
+    const sourced = sourcedIds(db)
+    for (const id of ids) {
+      // 例外只有登记过的无源指标：它们有行，但行里没有值。
+      // 有值却没有采集流水 → 这条值不是抓来的。
+      const hasValue = (
+        db.prepare('SELECT COUNT(*) AS c FROM observation WHERE indicator_id = ? AND value IS NOT NULL')
+          .get(id) as { c: number }
+      ).c
+      if (hasValue > 0) {
+        expect(sourced.has(id), `${id} 有值，但 fetch_log 里没有它的采集记录——可能是合成值残留`).toBe(true)
+      }
+    }
+    close(db)
+  })
+
+  it('★ status 只出现 ok / merged / missing，且没有一行 revised', () => {
     const db = openShippedCopy()
     const got = new Set(
       (db.prepare('SELECT DISTINCT status FROM observation').all() as Array<{ status: string }>).map(
@@ -201,9 +255,35 @@ describe('resources/macro.db · 随项目提交的那份文件', () => {
       ),
     )
     const all: ObsStatus[] = ['ok', 'prelim', 'revised', 'missing', 'merged']
-    for (const s of all) {
-      // 缺哪个，App.tsx 里对应的渲染分支就永远没被真正跑过
-      expect(got, `内置库里没有 status='${s}' 的样本`).toContain(s)
+    for (const s of got) expect(all, `出现了未知的 status：${s}`).toContain(s)
+
+    // ★ 这条是踩出来的。改造第一版把「合成值 → 真实值」判成了修订，
+    // 于是 2140 行真实值以 revision=1、status='revised' 落库，revision=0
+    // 留着编出来的数。界面上满屏「已修订」，读起来像统计局改了数——
+    // 那是错误的信息，不只是不好看。正确做法是换库（rebase），从 0 开始。
+    expect(got, '真实数据被记成了修订——那会把我们自己换数据说成统计局改数').not.toContain('revised')
+
+    // ok 是主体；merged 用来标 1—2 月合并发布，界面画菱形靠它；
+    // missing 是无源指标如实留的空行，一个都不能少
+    expect(got).toContain('ok')
+    expect(got).toContain('merged')
+    expect(got).toContain('missing')
+
+    // prelim / revised 在内置文件里没有样本：18 条序列的上游都是发布即终值，
+    // 修订要等抓取器后续运行才可能出现。也就是说 App.tsx 里这两个状态的
+    // 渲染分支**不再被这个文件覆盖**，改动它们时不能指望这里报警。
+    close(db)
+  })
+
+  it('★ 绝不编数：5 个无源指标的观测全是空值', () => {
+    // 「没有的就先不要实现」——上游不发布、或渠道取不到的指标，宁可在库里
+    // 留一条全空的序列，也不拿合成值顶上。这条断言守的就是「绝不编数」。
+    const db = openShippedCopy()
+    for (const id of ['cn.cpi_core.yoy', 'cn.fai.cum_yoy', 'cn.ind_prod.mom', 'cn.re.cum_yoy', 'cn.tsf.stock_yoy']) {
+      const rows = getSeries(db, id)
+      expect(rows.length, `${id} 连空行都没有——它在界面上会整条消失`).toBeGreaterThan(0)
+      expect(rows.filter((r) => r.value !== null).length, `${id} 里出现了值，但它没有取数规则`).toBe(0)
+      expect(rows.every((r) => r.status === 'missing'), `${id} 的空行状态不是 missing`).toBe(true)
     }
     close(db)
   })
@@ -247,20 +327,35 @@ describe('resources/macro.db · 经查询层读（UI 实际走的那条路）', 
     return openDatabase(tmp)
   }
 
-  it('★ 每个指标的序列非空、按 period_end 升序、期间无重复', () => {
+  it('★ 有观测的指标：序列按 period_end 升序、期间无重复', () => {
     const db = openShippedCopy()
     for (const ind of INDICATORS) {
       const rows = getSeries(db, ind.id)
-      expect(rows.length, `${ind.id} 读不出数据`).toBeGreaterThan(0)
+      // 没接入真实数据的指标本来就是空的，界面显示「暂无数据」。
+      // 有行才谈得上顺序。
+      if (rows.length === 0) continue
 
       // App.tsx 用 rows.at(-1) 当「最新一期」，靠的就是这个顺序
       const ends = rows.map((r) => r.periodEnd)
       expect([...ends].sort(), `${ind.id} 的 period_end 未升序`).toEqual(ends)
 
-      // 主键是 (indicator_id, period, revision)。同期间多条只允许出现在
-      // 有修订的指标上，否则界面的「最新一期」会随机取到其中一条。
+      // 主键是 (indicator_id, period, revision)，同期间多条只允许是有修订历史。
+      // 真实库里现在一条修订都没有——18 条序列的上游都发布即终值。
       const dup = rows.length - new Set(rows.map((r) => r.period)).size
-      if (dup > 0) expect(ind.id, `${ind.id} 同期间有 ${dup} 条重复`).toBe('cn.gdp.yoy')
+      expect(dup, `${ind.id} 同期间有 ${dup} 条重复，界面「最新一期」会随机取一条`).toBe(0)
+    }
+    close(db)
+  })
+
+  it('★ 18 个已接入的指标都有非空值，且没有一条 revision > 0', () => {
+    const db = openShippedCopy()
+    const sourced = sourcedIds(db)
+    expect(sourced.size, 'fetch_log 里一条采集记录都没有？').toBeGreaterThan(0)
+    expect(sourced.size).toBeLessThan(INDICATORS.length) // 确实只是 P0 里的一部分
+    for (const id of sourced) {
+      const rows = getSeries(db, id)
+      expect(rows.filter((r) => r.value !== null).length, `${id} 有采集记录却一条真实值都没有`).toBeGreaterThan(0)
+      expect(rows.every((r) => r.revision === 0), `${id} 有修订行，但真实值不该以修订形式落库`).toBe(true)
     }
     close(db)
   })
@@ -311,15 +406,18 @@ describe('resources/macro.db · 经查询层读（UI 实际走的那条路）', 
     // 页脚「最近采集」直接印它，为空会显示成「—」
     expect(getMeta(db, 'last_fetch_at')).toBeTruthy()
 
-    // 页脚的健康点：id 对不上就会永远显示「未采集」
-    const [health] = sourceHealth(db, [MOCK_SOURCE])
-    expect(health?.status).toBe('ok')
-    expect(health?.nameZh).toBe('示例数据')
+    // 页脚的健康点：id 对不上就会永远显示「未采集」。
+    // ★ id 必须与 Python 侧 `fetch_log.source_id` 逐字一致
+    //（fetcher/macro_fetcher/mapping.py 里每条规则的 `source`）。
+    for (const health of sourceHealth(db, [...REAL_SOURCES])) {
+      expect(health.status, `${health.id} 在 fetch_log 里查不到记录`).not.toBe('never')
+      expect(health.nameZh).toBeTruthy()
+    }
     close(db)
   })
 
   it('空库上的行为：counts 为 0、getSeries 返回空数组而不是抛错', () => {
-    // 「重置示例数据」失败或内置文件为空时，界面必须还能开成一块白板，
+    // 「重置数据」失败或内置文件为空时，界面必须还能开成一块白板，
     // 而不是整个崩掉。这条守的是那条降级路径。
     const empty = openDatabase(join(dir, 'empty.db'))
     exec(empty, schemaSql)

@@ -23,7 +23,7 @@ export function Indicators({ indicators, series, favorites, onFavorite, onOpen }
   if (lastFilter !== filterKey) { setLastFilter(filterKey); setPage(0) }
   const pageCount = Math.max(1, Math.ceil(visible.length / 24))
   return <>
-    <PageHeading title="指标库" description="按主题浏览指标，查看统计口径、历史走势与发布状态。"><Badge>{indicators.length} 个指标</Badge></PageHeading>
+    <PageHeading title="指标库" description="按主题浏览指标，查看统计口径、历史走势与发布状态。本轮接入真实数据的指标以实际观测为准，其余显示「暂无数据」。"><Badge>{indicators.length} 个指标</Badge></PageHeading>
     <div className="library-layout"><aside className="category-list" aria-label="指标分类">
       <button aria-pressed={category === 'all'} onClick={() => setCategory('all')}>全部指标 <span>{indicators.length}</span></button>
       {(Object.entries(CATEGORY_LABEL) as Array<[Category, string]>).filter(([id]) => indicators.some((i) => i.category === id)).map(([id, label]) =>

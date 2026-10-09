@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { IPC, type DataStatus, type ExportRequest, type Result } from '@shared/types'
 import { INDICATORS } from '@shared/indicators'
 import type { Db } from '../db/adapter'
-import { MOCK_SOURCE } from '../db/bootstrap'
+import { REAL_SOURCES } from '../db/bootstrap'
 import { counts, getMeta, getSeries, sourceHealth } from '../db/queries'
 import { exportPayload } from './export'
 
@@ -36,7 +36,7 @@ export function registerIpc(host: DbHost): void {
     const owner = BrowserWindow.fromWebContents(event.sender)
     if (!owner) throw new Error('导出窗口已关闭')
     const result = await dialog.showSaveDialog(owner, {
-      title: '导出示例数据', defaultPath: name,
+      title: '导出真实统计数据', defaultPath: name,
       filters: [{ name: req.format.toUpperCase(), extensions: [req.format] }],
     })
     if (result.canceled || !result.filePath) return { path: null }
@@ -58,7 +58,9 @@ export function registerIpc(host: DbHost): void {
         indicatorCount: INDICATORS.length,
         observationCount: c.observations,
         latestPeriod: c.latestPeriod,
-        sources: sourceHealth(db, [MOCK_SOURCE]),
+        // ★ 这组 id 必须与 Python 侧 `fetch_log.source_id` 逐字一致，
+        // 否则数据管理页会把每个源都显示成「从未采集」。
+        sources: sourceHealth(db, [...REAL_SOURCES]),
       }
     }),
   )

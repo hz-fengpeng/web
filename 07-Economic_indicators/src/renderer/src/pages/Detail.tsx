@@ -33,7 +33,7 @@ export function Detail({ indicator, indicators, rawRows, favorite, defaultRange,
         `${rows[0].period} 至 ${rows.at(-1)!.period} · ${VALUE_LABEL[indicator.valueType]} · 单位：${indicator.unit}${indicator.seasonalAdj ? ' · 季节调整' : ''}`,
         indicator.note ?? '', '当前值使用各期间最新修订；菱形标记表示 1—2 月合并发布。',
       ])
-      const path = await saveExport(`${indicator.nameShort}-示例-${rows[0].period}-${rows.at(-1)!.period}`, format, content)
+      const path = await saveExport(`${indicator.nameShort}-真实数据-${rows[0].period}-${rows.at(-1)!.period}`, format, content)
       if (path) notify(`已导出：${path}`)
     } catch (error) { onError(error) } finally { setExporting(false) }
   }
@@ -44,7 +44,7 @@ export function Detail({ indicator, indicators, rawRows, favorite, defaultRange,
       <button className="btn" onClick={onCompare}>加入对比</button>
     </PageHeading>
     <div className="detail-summary"><div className="hero-number tnum">{formatValue(latest?.value ?? null, indicator.decimals)}<span>{indicator.unit}</span></div>
-      <div className="summary-info"><strong>{latest?.period ?? '暂无数据'} <Badge>{latest ? STATUS_ZH[latest.status] : '无数据'}</Badge></strong><span>示例发布日 {latest?.releasedAt ?? '—'}</span></div>
+      <div className="summary-info"><strong>{latest?.period ?? '暂无数据'} <Badge>{latest ? STATUS_ZH[latest.status] : '无数据'}</Badge></strong><span>发布日（推算） {latest?.releasedAt ?? '—'}</span></div>
       <div className="summary-info"><span>较上期 · 计算值</span><Delta value={observationDelta(indicator, latest, allRows.at(-2))} unit={deltaUnit(indicator)} decimals={indicator.decimals} /></div>
     </div>
     <div className="note mb-5"><IndicatorMeta indicator={indicator} /><p>{indicator.note}</p></div>

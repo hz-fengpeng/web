@@ -13,3 +13,8 @@ tsconfig.*.tsbuildinfo
 # 恢复出混合数据。
 *.db-wal
 *.db-shm
+
+# 抓取器落盘前自动留的备份（`fetcher/macro_fetcher/cli.py`，默认开）。
+# 它们是本机上的回滚点，同一个库会攒出好几份、每份一百多 KB——
+# 留给自己用，但不该进仓库。要恢复就把某一份复制回 macro.db。
+resources/*.bak-*

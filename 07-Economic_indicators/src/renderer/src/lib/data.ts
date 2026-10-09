@@ -12,14 +12,12 @@ export const FREQUENCY_LABEL = { day: '日度', month: '月度', quarter: '季�
 export const RANGE_LABEL: Record<TimeRange, string> = {
   '1y': '近 1 年', '3y': '近 3 年', '5y': '近 5 年', all: '全部', custom: '自定义',
 }
-export const DEMO_LABEL = '示例数据，非真实统计'
-
 export function currentSeries(rows: Observation[]): Observation[] {
   return latestPerPeriod([...rows].sort((a, b) =>
     a.periodEnd.localeCompare(b.periodEnd) || b.revision - a.revision))
 }
 
-/** 所有快捷时间窗锚定库内最新期末，避免旧示例库按系统日期筛成空白。 */
+/** 所有快捷时间窗锚定库内最新期末：库是离线抓来的，可能落后于系统日期，按系统日期筛会筛成空白。 */
 export function rangeStart(end: string, range: TimeRange): string {
   if (range === 'all' || range === 'custom' || !end) return ''
   const date = new Date(`${end}T00:00:00Z`)
@@ -51,7 +49,10 @@ export function observationDelta(indicator: Indicator, row?: Observation, prev?:
     const current = new Date(`${row.period}T00:00:00Z`)
     const previous = new Date(`${prev.period}T00:00:00Z`)
     const days = (current.getTime() - previous.getTime()) / 86400e3
-    // 示例日历按工作周排列；跨周末可比，其他日历缺口不补算。
+    // 日度序列按工作日排列：相邻两日可比，跨周末（周五 → 周一）也认。
+    // 更长的缺口不补算——真实的中间价序列还会跳开法定节假日，
+    // 隔着长假的两个报价之间算出来的差不是「日变动」。
+    // 示例库过去只跳周末，这条规则当时就写窄了；现在两种情况都按同一标准处理。
     if (days !== 1 && !(days === 3 && previous.getUTCDay() === 5 && current.getUTCDay() === 1)) return null
     return row.value - prev.value
   }

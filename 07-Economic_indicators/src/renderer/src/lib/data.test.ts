@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { INDICATORS } from '@shared/indicators'
+import { REAL_DECLARATION } from '@shared/provenance'
 import type { Observation } from '@shared/types'
 import { comparable, currentSeries, filterRange, observationDelta, rangeStart, releaseEvents, shiftMonth } from './data'
 import { csvCell, seriesCsv } from './export'
@@ -61,13 +62,23 @@ describe('浏览数据的语义', () => {
 })
 
 describe('CSV 输出', () => {
-  it('带 BOM、口径声明、修订序号，空值不伪造成零', () => {
+  it('带 BOM、出处声明、修订序号，空值不伪造成零', () => {
     const csv = seriesCsv([{ indicator: ind('cn.cpi.yoy'), rows: [row('2026-02', null, 2)] }])
     expect(csv.startsWith('\uFEFF')).toBe(true)
-    expect(csv).toContain('示例数据，非真实统计')
+    expect(csv).toContain(REAL_DECLARATION)
     expect(csv).toContain('"修订序号"')
     expect(csv).toContain('"2026-02-28","","正常","2026-03-10","2"')
     expect(csv.endsWith('\r\n')).toBe(true)
+  })
+  it('★ 「指标类型」列说得清每行的来历：抓来的，还是我们按官方序列算的', () => {
+    // 导出的表格会脱离界面独立流传，出处声明和「指标类型」列是它唯二的标记。
+    // 派生指标是我们算的，不能印成官方发布值——反过来更糟：把自己算的数
+    // 说成统计局发布的。
+    const csv = seriesCsv([{ indicator: ind('cn.cpi.yoy'), rows: [row('2026-02', 2.3)] }])
+    expect(csv).toContain('官方发布值')
+    const derived = seriesCsv(
+      [{ indicator: { ...ind('cn.gdp.deflator_yoy'), isDerived: true }, rows: [row('2026Q2', 1.1)] }])
+    expect(derived).toContain('由官方序列计算')
   })
   it('转义逗号、引号及换行，阻止字符串公式而保留负数的数值类型', () => {
     expect(csvCell('a,"b"\nc')).toBe('"a,""b""\nc"')

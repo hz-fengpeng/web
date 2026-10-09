@@ -12,6 +12,8 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
+    "test:py": "cd fetcher && python3 -m unittest discover -s tests -t .",
+    "catalog:export": "node fetcher/tools/export-catalog.mjs && node fetcher/tools/export-periods.mjs",
     "dist:mac": "npm run build && electron-builder --mac --arm64"
   },
   "devDependencies": {

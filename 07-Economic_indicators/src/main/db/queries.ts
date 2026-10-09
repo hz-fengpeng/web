@@ -5,9 +5,10 @@ import { type Db } from './adapter'
 /**
  * 所有 SQL 集中在此，业务代码不散落 SQL 字符串。
  *
- * 观测读取、计数与元数据操作集中在这里。目录升级只从内置静态库追加
- * 新指标，已有系列不覆盖；写入由 catalog.ts 的事务管理。
- * 本轮没有恢复网络采集或运行时数据生成。
+ * **只读**：观测的读取与计数、`app_meta` 的读写（`migrate.ts` 用它记
+ * `schema_version`）。应用不生成数据、不写 `observation`——数据全部来自
+ * 随包发布的 `resources/macro.db`（见 bootstrap.ts），写入由 `fetcher/`
+ * 在应用外面完成。
  */
 
 export function getSeries(db: Db, indicatorId: string, from?: string, to?: string): Observation[] {
@@ -47,35 +48,6 @@ export function counts(db: Db): { observations: number; latestPeriod: string | n
     .prepare('SELECT MAX(period_end) AS p FROM observation')
     .get() as { p: string | null }
   return { observations: Number(c.c), latestPeriod: latest?.p ?? null }
-}
-
-/** 从静态内置库追加整个新指标；已有该指标的任何观测时，保留用户版本。 */
-export function appendBundledIndicators(db: Db, bundled: Db, ids: string[]): number {
-  const exists = db.prepare('SELECT 1 FROM observation WHERE indicator_id = ? LIMIT 1')
-  const read = bundled.prepare(`SELECT indicator_id, period, period_end, value, status, released_at, fetched_at, revision
-    FROM observation WHERE indicator_id = ?`)
-  const insert = db.prepare(`INSERT INTO observation
-    (indicator_id, period, period_end, value, status, released_at, fetched_at, revision)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-  let written = 0
-  for (const id of ids) {
-    if (exists.get(id)) continue
-    const rows = read.all(id)
-    if (rows.length === 0) throw new Error(`内置示例库缺少新增指标：${id}`)
-    for (const row of rows) {
-      insert.run(row.indicator_id, row.period, row.period_end, row.value, row.status, row.released_at, row.fetched_at, row.revision)
-      written++
-    }
-  }
-  return written
-}
-
-export function logCatalogUpgrade(db: Db, written: number, version: number): void {
-  const now = new Date().toISOString()
-  db.prepare(`INSERT INTO fetch_log(source_id, started_at, finished_at, status, rows_written, message)
-    VALUES ('mock', ?, ?, 'ok', ?, ?)`)
-    .run(now, now, written, `内置示例目录升级 v${version} · 追加 ${written} 条合成观测，非真实统计；已有指标保留`)
-  setMeta(db, 'last_fetch_at', now)
 }
 
 /** 各数据源的最近一次采集结果，驱动数据管理页的健康度展示 */

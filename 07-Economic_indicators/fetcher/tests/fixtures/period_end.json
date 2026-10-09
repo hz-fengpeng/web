@@ -1,0 +1,211 @@
+{
+  "generatedFrom": "src/shared/period.ts",
+  "note": "本文件由 fetcher/tools/export-periods.mjs 生成，请勿手改。",
+  "cases": [
+    {
+      "period": "2023-01",
+      "kind": "month",
+      "end": "2023-01-31"
+    },
+    {
+      "period": "2023-02",
+      "kind": "month",
+      "end": "2023-02-28"
+    },
+    {
+      "period": "2023-03",
+      "kind": "month",
+      "end": "2023-03-31"
+    },
+    {
+      "period": "2023-04",
+      "kind": "month",
+      "end": "2023-04-30"
+    },
+    {
+      "period": "2023-05",
+      "kind": "month",
+      "end": "2023-05-31"
+    },
+    {
+      "period": "2023-06",
+      "kind": "month",
+      "end": "2023-06-30"
+    },
+    {
+      "period": "2023-07",
+      "kind": "month",
+      "end": "2023-07-31"
+    },
+    {
+      "period": "2023-08",
+      "kind": "month",
+      "end": "2023-08-31"
+    },
+    {
+      "period": "2023-09",
+      "kind": "month",
+      "end": "2023-09-30"
+    },
+    {
+      "period": "2023-10",
+      "kind": "month",
+      "end": "2023-10-31"
+    },
+    {
+      "period": "2023-11",
+      "kind": "month",
+      "end": "2023-11-30"
+    },
+    {
+      "period": "2023-12",
+      "kind": "month",
+      "end": "2023-12-31"
+    },
+    {
+      "period": "2023Q1",
+      "kind": "quarter",
+      "end": "2023-03-31"
+    },
+    {
+      "period": "2023Q2",
+      "kind": "quarter",
+      "end": "2023-06-30"
+    },
+    {
+      "period": "2023Q3",
+      "kind": "quarter",
+      "end": "2023-09-30"
+    },
+    {
+      "period": "2023Q4",
+      "kind": "quarter",
+      "end": "2023-12-31"
+    },
+    {
+      "period": "2023",
+      "kind": "year",
+      "end": "2023-12-31"
+    },
+    {
+      "period": "2024-01",
+      "kind": "month",
+      "end": "2024-01-31"
+    },
+    {
+      "period": "2024-02",
+      "kind": "month",
+      "end": "2024-02-29"
+    },
+    {
+      "period": "2024-03",
+      "kind": "month",
+      "end": "2024-03-31"
+    },
+    {
+      "period": "2024-04",
+      "kind": "month",
+      "end": "2024-04-30"
+    },
+    {
+      "period": "2024-05",
+      "kind": "month",
+      "end": "2024-05-31"
+    },
+    {
+      "period": "2024-06",
+      "kind": "month",
+      "end": "2024-06-30"
+    },
+    {
+      "period": "2024-07",
+      "kind": "month",
+      "end": "2024-07-31"
+    },
+    {
+      "period": "2024-08",
+      "kind": "month",
+      "end": "2024-08-31"
+    },
+    {
+      "period": "2024-09",
+      "kind": "month",
+      "end": "2024-09-30"
+    },
+    {
+      "period": "2024-10",
+      "kind": "month",
+      "end": "2024-10-31"
+    },
+    {
+      "period": "2024-11",
+      "kind": "month",
+      "end": "2024-11-30"
+    },
+    {
+      "period": "2024-12",
+      "kind": "month",
+      "end": "2024-12-31"
+    },
+    {
+      "period": "2024Q1",
+      "kind": "quarter",
+      "end": "2024-03-31"
+    },
+    {
+      "period": "2024Q2",
+      "kind": "quarter",
+      "end": "2024-06-30"
+    },
+    {
+      "period": "2024Q3",
+      "kind": "quarter",
+      "end": "2024-09-30"
+    },
+    {
+      "period": "2024Q4",
+      "kind": "quarter",
+      "end": "2024-12-31"
+    },
+    {
+      "period": "2024",
+      "kind": "year",
+      "end": "2024-12-31"
+    },
+    {
+      "period": "2024-02-29",
+      "kind": "day",
+      "end": "2024-02-29"
+    },
+    {
+      "period": "2024-03-01",
+      "kind": "day",
+      "end": "2024-03-01"
+    },
+    {
+      "period": "2023-02-28",
+      "kind": "day",
+      "end": "2023-02-28"
+    },
+    {
+      "period": "2025-12-31",
+      "kind": "day",
+      "end": "2025-12-31"
+    },
+    {
+      "period": "2026-01-01",
+      "kind": "day",
+      "end": "2026-01-01"
+    }
+  ],
+  "invalid": [
+    "2023-02-29",
+    "2026-02-30",
+    "2026-13",
+    "2026Q5",
+    "2026-1",
+    "",
+    "abc",
+    "2026Q0"
+  ]
+}

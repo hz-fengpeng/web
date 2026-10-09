@@ -1,0 +1,8 @@
+# 虚拟环境与构建产物，都不进仓库。
+#
+# akshare 自带 16 个传递依赖（pandas、lxml、curl_cffi、requests…），
+# `.venv/` 装完几百 MB。提交它既没有意义，也会让仓库没法 clone。
+# `catalog.json` **要**提交——它是给 Python 读的指标镜像，不是产物缓存。
+.venv/
+*.egg-info/
+__pycache__/
