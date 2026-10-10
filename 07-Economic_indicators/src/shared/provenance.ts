@@ -24,6 +24,7 @@ export const REAL_DECLARATION = '真实统计数据'
  * 「整张表都完整」。
  */
 export function provenanceLine(): string {
-  return `${REAL_DECLARATION}（来源：国家统计局 / 东方财富 / 国家外汇管理局；` +
+  return `${REAL_DECLARATION}（来源：国家统计局 / 东方财富 / 国家外汇管理局 / ` +
+    '中国债券信息网 / 新浪财经；' +
     '由 fetcher/ 离线抓取，非实时）'
 }

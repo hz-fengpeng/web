@@ -42,6 +42,7 @@ from __future__ import annotations
 import importlib
 import re
 import threading
+from datetime import date, timedelta
 from typing import Any, Callable
 
 from . import SourceError, SourcePoint
@@ -59,6 +60,9 @@ _CN_QUARTER = {'一': 1, '二': 2, '三': 3, '四': 4}
 _CN_QUARTER_RE = re.compile(r'^(\d{4})年(?:第)?(.)季度')
 _COMPACT_YM_RE = re.compile(r'^(\d{4})(\d{2})$')
 _ISO_DAY_RE = re.compile(r'^(\d{4})-(\d{2})-(\d{2})')
+#: 新浪系月度表的「统计时间」列写成 `2026.8`（月不补零），与东财的
+#: `2026年08月份` 是同一件事的两种写法。
+_DOT_MONTH_RE = re.compile(r'^(\d{4})\.(\d{1,2})$')
 
 
 def cn_month(text: Any) -> str | None:
@@ -105,6 +109,15 @@ def iso_month(text: Any) -> str | None:
     return day[:7] if day else None
 
 
+def dot_month(text: Any) -> str | None:
+    """`'2026.8'` → `'2026-08'`（新浪系月度表的统计时间列）。"""
+    m = _DOT_MONTH_RE.match(str(text or '').strip())
+    if not m:
+        return None
+    month = int(m[2])
+    return f'{m[1]}-{month:02d}' if 1 <= month <= 12 else None
+
+
 #: 期间读法注册表。mapping 里用名字引用，写错名字会在**自检**时响，
 #: 而不是跑到一半才发现读不出期间。
 PERIOD_READERS: dict[str, Callable[[Any], str | None]] = {
@@ -113,6 +126,7 @@ PERIOD_READERS: dict[str, Callable[[Any], str | None]] = {
     'compact_month': compact_month,
     'iso_day': iso_day,
     'iso_month': iso_month,
+    'dot_month': dot_month,
 }
 
 
@@ -186,6 +200,11 @@ def fetch(spec: Any, indicator_id: str, since: str) -> list[SourcePoint]:
 
     `since` 只用于需要预先声明区间才能取数的接口（统计局），
     东财系的函数一律返回全量历史，由 cli 的窗口过滤掉不需要的部分。
+
+    `spec.window_months` 非 0 时，这个接口**一次调用取不满整个时间窗**
+    （中债的收益率曲线单次最多给一年），于是按该长度切片、逐段调用再拼起来。
+    切片只影响「怎么取数」，不影响期间：每段返回的仍是「日期 → 值」的原样观测，
+    窗口边界上的重复期间由写入层按修订语义处理。
     """
     reader = PERIOD_READERS.get(spec.period_from)
     if reader is None:
@@ -193,9 +212,63 @@ def fetch(spec: Any, indicator_id: str, since: str) -> list[SourcePoint]:
             f'{indicator_id}: 未登记的期间读法 {spec.period_from!r}；'
             f'已登记：{", ".join(sorted(PERIOD_READERS))}')
 
-    kwargs = {key: value.format(since=since, since_year=since[:4])
-              for key, value in spec.kwargs}
-    frame = _call(spec.func, kwargs)
+    if spec.window_months:
+        points: list[SourcePoint] = []
+        for window_start, window_end in _windows(since, spec.window_months):
+            frame = _call(spec.func, _kwargs(spec, since, window_start, window_end))
+            points.extend(_points(spec, indicator_id, reader, frame, since))
+        return points
+
+    frame = _call(spec.func, _kwargs(spec, since, '', ''))
+    return _points(spec, indicator_id, reader, frame, since)
+
+
+def _kwargs(spec: Any, since: str, window_start: str, window_end: str) -> dict[str, str]:
+    """把规则里的参数模板填成实际参数。
+
+    `{window_start}` / `{window_end}` 是 ISO 日期，`{window_start_compact}` /
+    `{window_end_compact}` 是同一对日期的 `YYYYMMDD` 写法——中债的接口只要后者。
+    不做日期格式的自动猜测：猜错的后果是请求了另一个区间，回来的数据看着正常，
+    只是少了几段。
+    """
+    return {
+        key: value.format(
+            since=since,
+            since_year=since[:4],
+            window_start=window_start,
+            window_end=window_end,
+            window_start_compact=window_start.replace('-', ''),
+            window_end_compact=window_end.replace('-', ''),
+        )
+        for key, value in spec.kwargs
+    }
+
+
+def _windows(since: str, months: int) -> list[tuple[str, str]]:
+    """`since` 到今天的连续时间窗，每段 `months` 个月（闭区间，右端含）。"""
+    if months < 1:
+        raise SourceError(f'window_months 必须 >= 1，收到 {months}')
+    today = date.today()
+    start = date.fromisoformat(f'{since}-01')
+    out: list[tuple[str, str]] = []
+    while start <= today:
+        # 右端取「起点后 months 个月的第一天」的前一天：整段因此**严格短于**
+        # months 个月，不会正好卡在「一年」的边界上被上游拒掉。
+        end = min(_add_months(start, months) - timedelta(days=1), today)
+        out.append((start.isoformat(), end.isoformat()))
+        start = end + timedelta(days=1)
+    return out
+
+
+def _add_months(day: date, months: int) -> date:
+    """月份平移，日固定为 1 号（调用方再往前退一天取月末）。"""
+    total = day.year * 12 + (day.month - 1) + months
+    return date(total // 12, total % 12 + 1, 1)
+
+
+def _points(spec: Any, indicator_id: str, reader: Callable, frame: Any,
+            since: str) -> list[SourcePoint]:
+    """一张报表 → 观测。取数本身不认识「窗口」，这里也不认识。"""
 
     if frame is None or not hasattr(frame, 'columns'):
         raise SourceError(f'{indicator_id}: {spec.func}() 没有返回 DataFrame')

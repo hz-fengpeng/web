@@ -298,9 +298,14 @@ def mark_fetched(connection: sqlite3.Connection, fetched_at: str,
                  source_ids: list[str]) -> None:
     """记下这次采集，并清掉旧版本遗留的元数据键。
 
-    `last_fetch_at` / `data_sources` 是应用要读的（页脚「最近采集」与来源
-    健康度）；`schema_version` 显式重申一遍，应用打开库时会读它，写一次
-    是幂等的、也留下痕迹。
+    `last_fetch_at` 是应用读的（页脚「最近采集」）；`schema_version` 显式重申
+    一遍，应用打开库时会读它，写一次是幂等的、也留下痕迹。
+
+    `data_sources` 记的是**本次运行用到的源**，不是「库里所有有数据的源」——
+    跑 `--tier P1,P2` 时它就只有那几个源。这一点必须说清楚，否则会读成
+    「库里只有这三个源的数据」。**应用的源健康度不读它**，读的是 `fetch_log`
+    里按 `source_id` 聚合的流水（`queries.ts` 的 `sourceHealth`），
+    所以少跑一层不会让页脚把某个源显示成「从未采集」。
     """
     set_meta(connection, 'last_fetch_at', fetched_at)
     set_meta(connection, 'data_sources', ','.join(sorted(set(source_ids))))

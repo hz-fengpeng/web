@@ -28,12 +28,15 @@ from pathlib import Path
 
 from . import __version__, db, releases
 from .catalog import Indicator, load_catalog, select
-from .mapping import GAP, MERGED, MONTHLY, RULES, UNSOURCED, Rule, check_against
+from .mapping import (
+    DERIVED, GAP, MERGED, MONTHLY, RULES, UNSOURCED, Rule, check_against, derived_source,
+)
 from .periods import (
     months_between, parse_period, period_end, quarter_period, quarters_between,
     years_between,
 )
 from .sources import SourceError, SourcePoint, akshare_src
+from .transforms import apply_transform
 
 DEFAULT_DB = Path(__file__).resolve().parent.parent.parent / 'resources' / 'macro.db'
 DEFAULT_FROM = '2021-09'
@@ -61,6 +64,9 @@ class Outcome:
     indicator: Indicator
     observations: list[db.Observation] = field(default_factory=list)
     error: str | None = None
+    #: 写进 `fetch_log` 的说明。计算指标在这里写清「由哪两条相减得到」——
+    #: 流水是这条值唯一的来历，读者不该去猜。
+    note: str = ''
 
     @property
     def ok(self) -> bool:
@@ -114,6 +120,71 @@ def fetch_all(indicators: list[Indicator],
             continue
         outcomes.append(Outcome(indicator, observations))
     return outcomes
+
+
+def derive_all(indicators: list[Indicator],
+               outcomes: list[Outcome]) -> list[Outcome]:
+    """计算指标：在**本轮抓到的观测**上按期间对齐再算。
+
+    与 `fetch_all` 分开，是因为它的输入不是报表而是「别的指标的观测」：
+    先抓完，再算。三条规矩：
+
+    - **输入缺一个就不算**：输入本轮失败或没被选中，这条计算指标记成失败，
+      而不是算一个只有一半输入的数；
+    - **任一期输入缺值就跳过那一期**：不插值、不外推、不拿上期顶上；
+    - **值取自输入的交集期间**：两个输入的日期轴不完全一样（两地的交易日
+      不同），只在两边都有报价的日子算——指标口径里写了「不做时点对齐」。
+    """
+    by_id = {outcome.indicator.id: outcome for outcome in outcomes if outcome.ok}
+    derived: list[Outcome] = []
+    for indicator in indicators:
+        rule = DERIVED.get(indicator.id)
+        if rule is None:
+            continue
+
+        inputs: list[dict[str, float | None]] = []
+        missing_input: str | None = None
+        for input_id in rule.inputs:
+            outcome = by_id.get(input_id)
+            if outcome is None:
+                missing_input = input_id
+                break
+            inputs.append({o.period: o.value for o in outcome.observations})
+        if missing_input is not None:
+            derived.append(Outcome(indicator, error=(
+                f'{indicator.id}：输入 {missing_input} 本轮没有取到数据，'
+                '计算指标不写半成品')))
+            continue
+
+        shared = set(inputs[0])
+        for values in inputs[1:]:
+            shared &= set(values)
+
+        observations: list[db.Observation] = []
+        for period in sorted(shared, key=period_end):
+            raw = [values[period] for values in inputs]
+            try:
+                value = apply_transform(rule.transform, raw)
+                released = releases.released_at(indicator, period)
+            except ValueError as exc:
+                derived.append(Outcome(indicator, error=f'{type(exc).__name__}: {exc}'))
+                observations = []
+                break
+            if value is None:
+                continue  # 输入缺值的那一期不写，而不是写个空值
+            observations.append(db.Observation(
+                indicator.id, period, round(value, indicator.decimals), 'ok', released))
+        else:
+            if not observations:
+                # 输入都在、却一期都没算出来，多半是期间没对上（而不是「这段
+                # 时间真的没有数据」）。与 `_fetch_one` 对 0 条观测的态度一致：
+                # 报出来，别让它静默变成「这个指标没数据」。
+                derived.append(Outcome(indicator, error=(
+                    f'{indicator.id}：输入都有数据，但按期间对齐后一期都没算出来，'
+                    '多半是输入之间的期间对不上')))
+                continue
+            derived.append(Outcome(indicator, observations, note=rule.note))
+    return derived
 
 
 def _fetch_one(indicator: Indicator, rule: Rule,
@@ -304,8 +375,18 @@ def run(options: Options, out=sys.stdout) -> int:
     end_month = f'{today.year:04d}-{today.month:02d}'
     end_day = today.isoformat()
 
-    scoped = [i for i in indicators if i.id in RULES or i.id in UNSOURCED]
-    sources = sorted({RULES[i.id].source for i in scoped if i.id in RULES})
+    scoped = [i for i in indicators if i.id in RULES or i.id in UNSOURCED or i.id in DERIVED]
+    # 选了计算指标，就得把它的输入也捎上：`--only cn.bond.cn_us_spread` 时
+    # 不带上两条 10 年期，它必然算不出来。输入按目录里的原始顺序追加。
+    scoped_ids = {i.id for i in scoped}
+    extra_ids = {input_id for i in scoped if i.id in DERIVED
+                 for input_id in DERIVED[i.id].inputs} - scoped_ids
+    if extra_ids:
+        # 保持目录里的原始顺序：报告里每个指标的相对位置不随 --only 变化
+        rank = {indicator_id: position for position, indicator_id in enumerate(catalog)}
+        scoped = sorted(scoped + [catalog[i] for i in extra_ids if i in catalog],
+                        key=lambda i: rank[i.id])
+    sources = sorted({_source_of(i.id) for i in scoped} - {'none'})
 
     print(f'抓取 {len(scoped)} 个指标（源：{"、".join(sources)}）', file=out)
     print(f'时间窗 {options.since} ～ {end_month}，日度止于 {end_day}', file=out)
@@ -314,6 +395,8 @@ def run(options: Options, out=sys.stdout) -> int:
     # 复用的情况（PMI、海关、货币供应量各供两个指标）。
     akshare_src.reset_cache()
     outcomes = fetch_all(scoped, options.since, end_month, end_day)
+    # 计算指标排在后头：它们的输入就是上面那批观测。
+    outcomes += derive_all(scoped, outcomes)
 
     started_at = db.utc_now()
     # 只读打开：`--dry-run` 承诺不落盘，而写模式的 connect() 会发 PRAGMA
@@ -486,7 +569,7 @@ def _plan_unclaimed(connection, catalog: dict[str, Indicator], summary: Summary)
     没有「保留」的开关：`--dry-run` 已经是不落盘的试跑路径，再留一个
     「保留这些值但仍然声称是真实库」的开关，就等于留了一条自我欺骗的路。
     """
-    claimed = set(RULES) | set(UNSOURCED)
+    claimed = set(RULES) | set(UNSOURCED) | set(DERIVED)
     unknown = {i: n for i, n in db.counts_all_indicators(connection).items()
                if i not in claimed}
     if not unknown:
@@ -513,6 +596,18 @@ def _known_sources() -> list[str]:
     毁掉整份采集记录。
     """
     return sorted({rule.source for rule in RULES.values()})
+
+
+def _source_of(indicator_id: str) -> str:
+    """这个指标的流水该记在哪个源名下。
+
+    计算指标没有自己的上游，记在它输入所在的那个源下——自检保证输入同源。
+    认不出来的记 `none`：宁可显眼，也不要随便挂到一个源上冒名。
+    """
+    rule = RULES.get(indicator_id)
+    if rule is not None:
+        return rule.source
+    return derived_source(indicator_id) or 'none'
 
 
 def _plan_foreign_log(connection, summary: Summary) -> None:
@@ -554,23 +649,19 @@ def _log(connection, outcomes: list[Outcome], summary: Summary, sources: list[st
     # `ORDER BY started_at DESC LIMIT 1`，若明细行更晚就会顶掉汇总行，
     # 把「部分失败」显示成该源的最终状态。
     for outcome in outcomes:
-        source = RULES[outcome.indicator.id].source if outcome.indicator.id in RULES else 'none'
         db.log_fetch(
-            connection, source,
+            connection, _source_of(outcome.indicator.id),
             f'{started_at}-{outcome.indicator.id}', started_at,
             'ok' if outcome.ok else 'fail',
             summary.rows_for(outcome.indicator.id),
-            outcome.error or '发布日为按惯例推算，非官方发布时刻',
+            outcome.error or outcome.note or '发布日为按惯例推算，非官方发布时刻',
             indicator_id=outcome.indicator.id,
         )
 
     for source in sources:
-        failed = [o for o in outcomes
-                  if not o.ok and RULES.get(o.indicator.id)
-                  and RULES[o.indicator.id].source == source]
+        failed = [o for o in outcomes if not o.ok and _source_of(o.indicator.id) == source]
         written = sum(summary.rows_for(o.indicator.id) for o in outcomes
-                      if o.ok and RULES.get(o.indicator.id)
-                      and RULES[o.indicator.id].source == source)
+                      if o.ok and _source_of(o.indicator.id) == source)
         db.log_fetch(
             connection, source, started_at, finished_at,
             'partial' if failed else 'ok', written,

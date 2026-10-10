@@ -12,6 +12,7 @@ import unittest
 from macro_fetcher.transforms import (
     TRANSFORMS,
     apply_transform,
+    cn_us_spread_bp,
     divide_100,
     exports_minus_imports_100m,
     index_minus_100,
@@ -123,7 +124,32 @@ class Registry(unittest.TestCase):
     def test_registry_matches_module_functions(self) -> None:
         self.assertEqual(set(TRANSFORMS),
                          {'single', 'index_minus_100', 'divide_100',
-                          'exports_minus_imports_100m'})
+                          'exports_minus_imports_100m', 'cn_us_spread_bp'})
+
+
+class CnUsSpread(unittest.TestCase):
+    """中美 10 年期国债利差（基点）=（中国 − 美国）× 100。"""
+
+    def test_subtracts_china_minus_usa_in_basis_points(self) -> None:
+        # 2024-01-02 实测：中国 2.5601、美国 3.95 → -138.99 bp
+        self.assertAlmostEqual(cn_us_spread_bp([2.5601, 3.95]), -138.99, places=6)
+
+    def test_sign_is_not_flipped(self) -> None:
+        """方向反了同样「看起来合理」——近年这条利差长期为负。"""
+        self.assertLess(cn_us_spread_bp([1.6864, 5.24]), 0)
+
+    def test_magnitude_is_basis_points_not_percent(self) -> None:
+        """钉住 ×100：少了它得到的是百分点，量级小 100 倍。"""
+        self.assertAlmostEqual(cn_us_spread_bp([2.0, 2.5]), -50.0, places=6)
+
+    def test_either_side_missing_is_missing(self) -> None:
+        # 2026-10-07 美国有报价、中国那列是 NaN——那一期不写值
+        self.assertIsNone(cn_us_spread_bp([None, 4.77]))
+        self.assertIsNone(cn_us_spread_bp([1.2719, None]))
+
+    def test_needs_two_inputs(self) -> None:
+        self.assertIsNone(cn_us_spread_bp([1.2719]))
+        self.assertIsNone(cn_us_spread_bp([]))
 
 
 if __name__ == '__main__':

@@ -105,7 +105,7 @@ export default function App(): JSX.Element {
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">跳到主要内容</a>
     <header className="titlebar"><span>中国宏观经济指标</span><span className="titlebar-mode">真实统计 · 离线可用</span></header>
-    <div className="provenance-banner"><span aria-hidden="true">◆</span><p><strong>真实统计数据。</strong> 数值来自国家统计局、东方财富与国家外汇管理局的公开数据，由 fetcher/ 离线抓取后写入本地库，<strong>不是实时行情</strong>。少数指标暂无免费数据源，以「缺失」如实呈现。口径说明用于解释统计范围。</p></div>
+    <div className="provenance-banner"><span aria-hidden="true">◆</span><p><strong>真实统计数据。</strong> 数值来自国家统计局、东方财富、国家外汇管理局、中国债券信息网与新浪财经的公开数据，由 fetcher/ 离线抓取后写入本地库，<strong>不是实时行情</strong>。少数指标暂无免费数据源，以「缺失」如实呈现。口径说明用于解释统计范围。</p></div>
     {error && <div className="error-banner" role="alert"><span>读取或操作失败：{error}</span><div className="actions"><button className="btn" disabled={loading || busy} onClick={() => void load()}>重试读取</button><button className="btn" onClick={() => setError(null)}>关闭</button></div></div>}
     <div className="app-body"><nav className="sidebar" aria-label="主导航"><div className="brand"><span className="brand-mark">M</span><div><strong>宏观观察</strong><small>CHINA MACRO</small></div></div>
       <div className="nav-caption">工作台</div>{NAV.map((item) => <button className="nav-item" aria-current={page === item.id || (item.id === 'indicators' && page === 'detail') ? 'page' : undefined} key={item.id} onClick={() => setPage(item.id)}><span className="nav-icon" aria-hidden="true">{item.icon}</span>{item.label}</button>)}

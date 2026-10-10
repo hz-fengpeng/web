@@ -8,8 +8,10 @@ from __future__ import annotations
 import unittest
 
 from macro_fetcher import db
+from macro_fetcher.catalog import Indicator, load_catalog
 from macro_fetcher.cli import (
     Outcome, Summary, _known_sources, _plan_foreign_log, _plan_sourced, _plan_unclaimed,
+    derive_all,
 )
 from macro_fetcher.mapping import RULES, UNSOURCED
 
@@ -30,10 +32,12 @@ def put(connection, indicator_id: str, periods: list[str]) -> None:
 class PlanUnclaimed(DbTestCase):
     """未纳入采集范围的指标：既无取数规则、也不在 UNSOURCED 里。"""
 
-    #: RULES / UNSOURCED 里的真实 id，跟着 mapping.py 走，不另抄一份
+    #: 三张表里的真实 id，跟着 mapping.py 走，不另抄一份。★ 目录里 109 个指标
+    #: 现在**全部**登记过了，所以「没人认领」只能用目录外的 id 来试——
+    #: 这本身是好事：真实库里已经没有未认领的指标了。
     sourced = next(iter(RULES))
     unsourced = next(iter(UNSOURCED))
-    unclaimed = 'cn.keqiang.growth'
+    unclaimed = 'cn.not.a.real.indicator'
 
     def test_只清没人认领的(self) -> None:
         put(self.db, self.sourced, ['2021-09', '2021-10'])
@@ -73,7 +77,7 @@ class PlanUnclaimed(DbTestCase):
 
         put(self.db, self.unclaimed, ['2021-09'])
         listed = Indicator(
-            id=self.unclaimed, name_zh='克强指数', name_short='克强指数',
+            id=self.unclaimed, name_zh='目录里的指标', name_short='目录里的指标',
             category='growth', unit='%', frequency='month', value_type='index',
             seasonal_adj=False, decimals=1, is_headline=False, tier='P2', note=None,
         )
@@ -130,11 +134,79 @@ class PlanForeignLog(DbTestCase):
 
 
 class CatalogIsCovered(unittest.TestCase):
-    """`_plan_unclaimed` 的判据是 RULES ∪ UNSOURCED，所以那两张表必须自洽。"""
+    """`_plan_unclaimed` 的判据是 RULES ∪ UNSOURCED ∪ DERIVED，那三张表必须自洽。"""
 
     def test_两张表不重叠(self) -> None:
         self.assertEqual(set(RULES) & set(UNSOURCED), set(),
                          '同一个指标不能既说有源又说无源')
+
+
+class DerivedOutcomes(unittest.TestCase):
+    """计算指标：由**输入指标的观测**算出来，不写半成品。
+
+    `derive_all` 不联网、也不碰库——它拿的是这一轮已经抓到的观测。
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.catalog = load_catalog()
+        cls.target = cls.catalog['cn.bond.cn_us_spread']
+
+    def outcome(self, indicator_id: str, values: dict[str, float | None]) -> Outcome:
+        return Outcome(self.catalog[indicator_id], [
+            db.Observation(indicator_id, period, value, 'ok', period)
+            for period, value in values.items()])
+
+    def test_computes_the_spread_in_basis_points(self) -> None:
+        derived = derive_all([self.target], [
+            self.outcome('cn.bond.gov_10y', {'2026-10-09': 1.6864}),
+            self.outcome('us.bond.gov_10y', {'2026-10-09': 5.24}),
+        ])
+        self.assertEqual(len(derived), 1)
+        self.assertTrue(derived[0].ok, derived[0].error)
+        row = derived[0].observations[0]
+        self.assertEqual(row.period, '2026-10-09')
+        # (1.6864 − 5.24) × 100 = −355.36 → 按目录精度取一位 = −355.4
+        self.assertAlmostEqual(row.value, -355.4, places=6)
+        self.assertEqual(row.status, 'ok')
+
+    def test_only_periods_both_inputs_have(self) -> None:
+        """两地交易日不同：只在两边都有报价的日子算，不补、不外推。"""
+        derived = derive_all([self.target], [
+            self.outcome('cn.bond.gov_10y', {'2026-10-08': 1.6899, '2026-10-09': 1.6864}),
+            self.outcome('us.bond.gov_10y', {'2026-10-09': 5.24, '2026-10-10': 5.30}),
+        ])
+        self.assertEqual([o.period for o in derived[0].observations], ['2026-10-09'])
+
+    def test_a_period_missing_a_value_is_skipped(self) -> None:
+        derived = derive_all([self.target], [
+            self.outcome('cn.bond.gov_10y', {'2026-10-07': None, '2026-10-09': 1.6864}),
+            self.outcome('us.bond.gov_10y', {'2026-10-07': 4.77, '2026-10-09': 5.24}),
+        ])
+        rows = derived[0].observations
+        self.assertEqual([o.period for o in rows], ['2026-10-09'])
+        self.assertTrue(all(o.value is not None for o in rows))
+
+    def test_missing_input_is_an_error_not_half_a_number(self) -> None:
+        derived = derive_all([self.target], [
+            self.outcome('cn.bond.gov_10y', {'2026-10-09': 1.6864}),
+        ])
+        self.assertFalse(derived[0].ok)
+        self.assertIn('us.bond.gov_10y', derived[0].error)
+        self.assertEqual(derived[0].observations, [])
+
+    def test_inputs_without_overlap_is_an_error(self) -> None:
+        """输入都在、期间却对不上：报出来，不静默变成「没有数据」。"""
+        derived = derive_all([self.target], [
+            self.outcome('cn.bond.gov_10y', {'2026-10-09': 1.6864}),
+            self.outcome('us.bond.gov_10y', {'2026-10-10': 5.24}),
+        ])
+        self.assertFalse(derived[0].ok)
+        self.assertIn('一期都没算出来', derived[0].error)
+
+    def test_indicators_without_a_derived_rule_are_ignored(self) -> None:
+        derived = derive_all([self.catalog['cn.bond.gov_10y']], [])
+        self.assertEqual(derived, [])
 
 
 class RebaseOnForeignLog(DbTestCase):

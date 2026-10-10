@@ -37,17 +37,22 @@ const SHIPPED = resolve('resources', BUNDLED_DB)
  * 记着它来自哪个源。**故意不另抄一份 id 清单**：清单是声明，而 fetch_log
  * 是抓取器实际做过的事的流水；两者对不上，正是要在这里抓出来的东西。
  *
+ * 源 id 直接取 `REAL_SOURCES`，不在这里再写一遍——同一份清单写两处，
+ * 加一个源时漏改一处，症状是「有值却查不到流水」，报错还指向错误的地方。
+ *
  * 这条判据挡不住「抓取器既写了行又顺手写了日志」这种自洽的错，但那种错
  * 得先在 `mapping.py` 里编一条规则才可能发生，而规则表本身有 Python 侧的
  * 测试盯着（`fetcher/tests/test_mapping.py`）。
  */
 function sourcedIds(db: Db): Set<string> {
+  const ids = REAL_SOURCES.map((s) => s.id)
   const rows = db
     .prepare(
       `SELECT DISTINCT indicator_id FROM fetch_log
-        WHERE indicator_id IS NOT NULL AND source_id IN ('eastmoney', 'nbs', 'safe')`,
+        WHERE indicator_id IS NOT NULL
+          AND source_id IN (${ids.map(() => '?').join(', ')})`,
     )
-    .all() as Array<{ indicator_id: string }>
+    .all(...ids) as Array<{ indicator_id: string }>
   return new Set(rows.map((r) => r.indicator_id))
 }
 

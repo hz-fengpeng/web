@@ -38,12 +38,17 @@ export const BUNDLED_DB = 'macro.db'
  * 否则数据管理页会把每个源都显示成「从未采集」。有测试钉住这组 id。
  *
  * 记的是**上游站点**而不是 `akshare`：akshare 只是搬运方式，数据实际来自
- * 这三家。用户看到的应该是「国家统计局」，不是中间经手的库。
+ * 这几家。用户看到的应该是「国家统计局」，不是中间经手的库。
+ *
+ * P1 接入后又多了两家（中债的收益率曲线、新浪的货运量）——抓取器写什么 id，
+ * 这里就得有什么，否则数据管理页只会在那几个源上显示「从未采集」。
  */
 export const REAL_SOURCES: ReadonlyArray<{ id: string; nameZh: string }> = [
   { id: 'nbs', nameZh: '国家统计局' },
   { id: 'eastmoney', nameZh: '东方财富' },
   { id: 'safe', nameZh: '国家外汇管理局' },
+  { id: 'chinabond', nameZh: '中国债券信息网' },
+  { id: 'sina', nameZh: '新浪财经' },
 ] as const
 
 /**

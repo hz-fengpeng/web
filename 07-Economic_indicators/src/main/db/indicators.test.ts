@@ -39,13 +39,36 @@ describe('目录与库的一致性', () => {
     for (const i of INDICATORS) expect(i.note, i.id).toBeTruthy()
   })
 
-  it('★ 库里的观测只覆盖 P0，P1/P2 一条都没有', () => {
-    // 「没有的就先不要实现」：本轮只接了 P0。P1/P2 在库里必须是空的——
-    // 有值就说明有合成值残留（抓取器的 _plan_unclaimed 会清掉它们）。
+  it('★ 109 个指标在库里都有观测行：有源的有值，无源的整条 missing', () => {
+    // ★ 这条断言换过一次意思，值得说清前后。从前它写的是「只覆盖 P0，
+    // P1/P2 一条都没有」——那是 P1/P2 还没接入时的事实。现在三层都登记过了：
+    // 抓取器会给**每一个登记过的指标**写行，拿不到值的写成
+    // `value=NULL / status='missing'`，而不是让这条序列整条消失。
+    // 于是「库里有没有这个指标」不再取决于「它有没有源」，
+    // 而「有没有值」继续取决于源——两者是不同的问题。
+    const valued = new Set<string>()
     for (const ind of INDICATORS) {
       const rows = getSeries(db, ind.id)
-      if ((ind.tier ?? 'P0') === 'P0') expect(rows.length, `${ind.id} 是 P0，却没有观测行`).toBeGreaterThan(0)
-      else expect(rows, `${ind.id} 是 ${ind.tier}，本轮没接入，不该有观测`).toEqual([])
+      expect(rows.length, `${ind.id} 连一行观测都没有——界面上会整条消失`).toBeGreaterThan(0)
+      const withValue = rows.filter((r) => r.value !== null)
+      if (withValue.length > 0) {
+        valued.add(ind.id)
+        continue
+      }
+      expect(
+        rows.every((r) => r.status === 'missing'),
+        `${ind.id} 没有值，状态却不是 missing`,
+      ).toBe(true)
+    }
+
+    // 仍是有值的少数：P0 的 18 条 + P1 本轮新接的 5 条。
+    // 这个数字就是「定义 ≠ 有数据」的量化说法，改数据时它会跟着动。
+    expect(valued.size).toBe(23)
+    const p0Valued = INDICATORS.filter((i) => (i.tier ?? 'P0') === 'P0' && valued.has(i.id))
+    expect(p0Valued.length).toBe(18)
+    for (const id of ['cn.bond.gov_1y', 'cn.bond.gov_10y', 'us.bond.gov_10y',
+      'cn.bond.cn_us_spread', 'cn.rail.freight_yoy']) {
+      expect(valued.has(id), `${id} 已接入取数规则，却没有值`).toBe(true)
     }
   })
 
@@ -130,5 +153,41 @@ describe('数值本身', () => {
     expect(balance.every((r) => r.value !== null)).toBe(true)
     // 单位是亿美元，量级在数百到一千上下；负值（逆差）历史上极少
     for (const row of balance) expect(Math.abs(row.value!)).toBeLessThan(3000)
+  })
+
+  it('★ 新接入的 P1 序列：量级对得上单位，计算值等于输入之差', () => {
+    // 收益率是年化百分比：三条都该落在 0～10 之间。把中债曲线的
+    // 「1年」读成别的列、或忘了它是百分比，会得到一条量级不同的曲线，
+    // 而「利率 169%」在图上只是位置高了点。
+    for (const id of ['cn.bond.gov_1y', 'cn.bond.gov_10y', 'us.bond.gov_10y']) {
+      const rows = getSeries(db, id).filter((r) => r.value !== null)
+      expect(rows.length, `${id} 的日度观测太少`).toBeGreaterThan(1000)
+      for (const row of rows) {
+        expect(row.value!, `${id} ${row.period} = ${row.value}，不像年化百分比`).toBeGreaterThan(0)
+        expect(row.value!).toBeLessThan(10)
+      }
+    }
+
+    // ★ 利差是**计算值**：逐日等于两条 10 年期之差 ×100（基点）。
+    // 这条断言不经过抓取器，只比对库里已经落好的三列——方向反了、
+    // 或把百分比当基点写进去（少乘 100），都会在这里露馅。
+    const cn = new Map(getSeries(db, 'cn.bond.gov_10y').map((r) => [r.period, r.value]))
+    const usa = new Map(getSeries(db, 'us.bond.gov_10y').map((r) => [r.period, r.value]))
+    const spread = getSeries(db, 'cn.bond.cn_us_spread')
+    expect(spread.length).toBeGreaterThan(1000)
+    let compared = 0
+    for (const row of spread) {
+      const a = cn.get(row.period)
+      const b = usa.get(row.period)
+      if (a == null || b == null) continue
+      expect(row.value!, `${row.period} 的利差与两条 10 年期对不上`).toBeCloseTo((a - b) * 100, 5)
+      compared += 1
+    }
+    expect(compared, '没有任何一天两边都有报价，这条计算序列是空的').toBeGreaterThan(1000)
+
+    // 铁路货运量是「当月同比」：百分比，量级 ±60 以内
+    const rail = getSeries(db, 'cn.rail.freight_yoy').filter((r) => r.value !== null)
+    expect(rail.length).toBeGreaterThan(40)
+    for (const row of rail) expect(Math.abs(row.value!)).toBeLessThan(60)
   })
 })

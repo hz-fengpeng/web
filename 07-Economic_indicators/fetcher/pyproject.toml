@@ -15,7 +15,14 @@ dependencies = [
     # 代价是 16 个传递依赖（pandas、requests、curl_cffi、lxml…），
     # 所以抓取器只跑在开发机上、跑完把 macro.db 提交进仓库，
     # **不进安装包、不进运行时**（应用本身仍然 `connect-src 'none'`，不联网）。
-    "akshare>=1.19",
+    #
+    # ★ 下限分两档是**环境事实**，不是随手写的：akshare 1.18.90 起要求
+    # Python >= 3.11，而本包允许 3.10（本机就是 3.10）。一条 `>=1.19`
+    # 会让 `pip install -e .` 在 3.10 上直接报「找不到满足要求的版本」——
+    # README 里那条安装命令因此跑不通。3.10 上装 1.18.x 实测可用
+    # （本库现有的全部规则都是在 1.18.64 上验过的）。
+    "akshare>=1.18; python_version < '3.11'",
+    "akshare>=1.19; python_version >= '3.11'",
 ]
 
 [project.optional-dependencies]

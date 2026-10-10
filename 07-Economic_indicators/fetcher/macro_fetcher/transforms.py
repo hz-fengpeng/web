@@ -71,11 +71,29 @@ def exports_minus_imports_100m(values: list[float | None]) -> float | None:
     return (exports - imports) / 1e5
 
 
+def cn_us_spread_bp(values: list[float | None]) -> float | None:
+    """中美 10 年期国债利差（基点）= (中国 − 美国) × 100。
+
+    两个输入是**同一条日期轴上的两个百分比**（`bond_zh_us_rate` 一张表的两列），
+    相减得百分点，×100 换成基点。方向不能反：中国收益率低于美国时利差为负，
+    反了会得到一个看起来同样合理的正数（近年这条利差长期为负）。
+    任一侧当天没有报价（该列是 NaN）就返回 None——那一期写成缺失，
+    不拿前一天的报价顶上。
+    """
+    if len(values) < 2:
+        return None
+    china, usa = values[0], values[1]
+    if china is None or usa is None:
+        return None
+    return (china - usa) * 100
+
+
 TRANSFORMS: dict[str, Transform] = {
     'single': single,
     'index_minus_100': index_minus_100,
     'divide_100': divide_100,
     'exports_minus_imports_100m': exports_minus_imports_100m,
+    'cn_us_spread_bp': cn_us_spread_bp,
 }
 
 
